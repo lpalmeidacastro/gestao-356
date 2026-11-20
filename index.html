@@ -221,6 +221,28 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 .ib.tem::after{content:"";position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
 .btn.pg{background:#8b3dff;border-color:transparent;color:#fff;font-weight:590;height:44px}
 .btn.bad{background:rgba(255,92,122,.1);border-color:rgba(255,92,122,.3);color:#ff8fa3}
+.rc.est{cursor:default}.rc.est:hover{transform:none}
+.dnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dnav .dl{font-size:15px;font-weight:510;color:var(--t1);min-width:210px;text-align:center}
+.frow{display:grid;grid-template-columns:minmax(0,2fr) .9fr auto auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
+.frow:hover{background:rgba(255,255,255,.025)}
+.frow.ina{opacity:.55}
+.fval{text-align:right;color:var(--t1);font-weight:510;font-variant-numeric:tabular-nums}
+.fseg{display:flex;gap:4px;padding:4px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.fseg button{height:36px;min-width:84px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--t3);font-size:13px;font-weight:510;cursor:pointer;transition:background-color .2s var(--ease)}
+.fseg button:hover{background:rgba(255,255,255,.05)}
+.fseg button.on.p{background:rgba(62,207,142,.16);color:var(--ok)}
+.fseg button.on.f{background:rgba(255,92,122,.14);color:#ff8fa3}
+.fact{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.btn.pgok{background:rgba(62,207,142,.1);border-color:rgba(62,207,142,.3);color:var(--ok);height:44px}
+.mrow{display:grid;grid-template-columns:minmax(0,1.8fr) .5fr .5fr 1fr 1fr 1fr auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.mrow.hd{background:rgba(255,255,255,.02);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
+.mrow .mc{text-align:right;color:var(--t1)}
+.mrow .mc.z{color:var(--t3)}
+.mrow .fnome{min-width:0}
+.fnome{min-width:0;display:flex;flex-direction:column}
+.fnome b{color:var(--t1);font-weight:510;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fnome span{font-size:12px;color:var(--t3)}
 .nb{margin-left:auto;font-size:11px;font-weight:590;color:#ff8fa3;background:rgba(255,92,122,.12);padding:1px 8px;border-radius:9999px}
 .prox{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .prox .n{min-width:0}
@@ -280,6 +302,24 @@ input[type=date]{color-scheme:dark}
   .brow .bven{grid-column:1}
   .brow .bst{grid-column:2;grid-row:2;justify-self:end}
   .brow .bact{grid-column:1/-1;justify-content:flex-end}
+  .frow{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:12px 16px}
+  .frow .fnome{grid-column:1}
+  .frow .fval{grid-column:2;grid-row:1;align-self:start}
+  .frow .fseg{grid-column:1/-1}
+  .frow .fseg button{flex:1;height:44px}
+  .frow .fact{grid-column:1/-1;justify-content:flex-end}
+  .mrow{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;padding:12px 16px}
+  .mrow.hd{display:none}
+  .mrow .fnome{grid-column:1/-1}
+  .mrow .mc{text-align:left}
+  .mrow .mc::before{content:attr(data-l);display:block;font-size:11px;color:var(--t3)}
+  .mrow .fact{grid-column:1/-1}
+  .dnav .dl{min-width:0;flex:1 1 100%;order:-1;text-align:left}
+  .panel .ph2{flex-wrap:wrap;gap:10px 16px;padding:14px 16px}
+  .panel .pb{padding:14px 16px}
+  .rcards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .rc{padding:14px;gap:4px}
+  .rc .v{font-size:20px}
   .md{top:auto;bottom:0;left:0;right:0;width:100%;transform:none;border-radius:20px 20px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom));animation:sobeModal .22s var(--ease) both}
   @keyframes sobeModal{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 }
@@ -368,7 +408,8 @@ const SETORES = [
 const Store = {
   s: { fase:'carregando', user:null, perfil:null, rota:'painel', online:navigator.onLine,
        painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null },
-       boletos:{ lista:null, filtro:'abertos', erro:null } },
+       boletos:{ lista:null, filtro:'abertos', erro:null },
+       free:{ lista:null, pres:{}, meses:[], dia:null, erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -736,6 +777,154 @@ async function enviarComprovante(file) {
   } catch (e) { Store.set({ boletos:{ ...B, erro:'Não foi possível salvar o comprovante. ' + msgErro(e) } }); }
 }
 
+/* ============ freelancers e presença ============ */
+// empresas/356/freelancers/{id}: nome, funcao, setor (importados|bebidas|cozinha|eventos|geral), valorCombinado (por dia), ativo (bool), criadoPorUid, criadoEm
+// empresas/356/presencas/{AAAA-MM-DD_freelaId}: data, freelaId, status ('presente'|'faltou'), valor (copiado do combinado no dia), pago (bool), pagoEm, por
+const colFree = () => db.collection(`empresas/${EMPRESA}/freelancers`);
+const colPres = () => db.collection(`empresas/${EMPRESA}/presencas`);
+const diaFree = s => s.free.dia || hojeStr();
+const diaLabel = iso => { const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' }); return x.charAt(0).toUpperCase() + x.slice(1); };
+const diaAdd = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d + n); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); };
+const presId = (data, fid) => data + '_' + fid;
+const nDias = n => n + (n === 1 ? ' dia' : ' dias');
+async function buscarPresMes(mes) {
+  const q = await colPres().where('data', '>=', mes + '-01').where('data', '<=', mes + '-31').get();
+  const o = {}; q.docs.forEach(d => { o[d.id] = { id:d.id, ...d.data() }; }); return o;
+}
+let freeBusca = false;
+async function carregarFree(forcar) {
+  if (freeBusca || (Store.s.free.lista && !forcar)) return;
+  freeBusca = true;
+  try {
+    const mes = diaFree(Store.s).slice(0, 7);
+    const [fq, pres] = await Promise.all([colFree().get(), buscarPresMes(mes)]);
+    const lista = fq.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    Store.set({ free:{ ...Store.s.free, lista, pres:{ ...Store.s.free.pres, ...pres }, meses:Array.from(new Set(Store.s.free.meses.concat([mes]))), erro:null } });
+  } catch (e) { console.error(e); Store.set({ free:{ ...Store.s.free, lista:Store.s.free.lista || [], erro:'Não foi possível carregar os freelancers. ' + msgErro(e) } }); }
+  finally { freeBusca = false; }
+}
+async function irParaDia(dia) {
+  const F = Store.s.free, mes = dia.slice(0, 7);
+  if (F.meses.includes(mes)) { Store.set({ free:{ ...F, dia } }); return; }
+  try {
+    const pres = await buscarPresMes(mes), G = Store.s.free;
+    Store.set({ free:{ ...G, dia, pres:{ ...G.pres, ...pres }, meses:G.meses.concat([mes]), erro:null } });
+  } catch (e) { Store.set({ free:{ ...Store.s.free, erro:'Não foi possível abrir esse mês. ' + msgErro(e) } }); }
+}
+const presDoDia = (F, dia) => Object.values(F.pres).filter(p => p.data === dia);
+function resumoDia(F, dia) {
+  const ps = presDoDia(F, dia), pres = ps.filter(p => p.status === 'presente');
+  return { presentes:pres.length, faltas:ps.filter(p => p.status === 'faltou').length, aPagar:pres.filter(p => !p.pago).reduce((a, p) => a + (Number(p.valor) || 0), 0), pago:pres.filter(p => p.pago).reduce((a, p) => a + (Number(p.valor) || 0), 0), pres };
+}
+
+function freelancersHTML(s) {
+  const F = s.free, dia = diaFree(s), hoje = hojeStr(), mes = dia.slice(0, 7);
+  const head = `<div class="ph"><div><div class="ctx">Lista de presença · valor combinado por dia</div><h1>Freelancers</h1></div>
+    <button class="btn pri" data-act="freeNovo">+ Novo freelancer</button></div>`;
+  const erro = F.erro ? `<div class="alert err on" role="alert">${esc(F.erro)} <button class="btn ghost" data-act="freeRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (F.lista === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const ativos = F.lista.filter(f => f.ativo !== false);
+  const r = resumoDia(F, dia);
+  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  const cards = card('var(--ok)', 'Presentes', r.presentes, 'de ' + ativos.length + (ativos.length === 1 ? ' ativo' : ' ativos'))
+    + card('var(--err)', 'Faltaram', r.faltas, r.faltas === 1 ? 'marcou falta' : 'marcaram falta')
+    + card('var(--warn)', 'A pagar no dia', brl(r.aPagar), 'dos presentes')
+    + card('#b98cff', 'Pago no dia', brl(r.pago), r.pres.filter(p => p.pago).length + ' pagos');
+  const nav = `<div class="dnav"><span class="dl" aria-live="polite">${esc(diaLabel(dia))}</span>
+    <button class="ib" data-act="diaMover" data-d="-1" aria-label="Dia anterior">${ico('esq')}</button>
+    <button class="ib" data-act="diaMover" data-d="1" aria-label="Próximo dia" ${dia >= hoje ? 'disabled style="opacity:.35;cursor:default"' : ''}>${ico('dir')}</button>
+    ${dia !== hoje ? '<button class="chip" data-act="diaHoje">Hoje</button>' : ''}</div>`;
+  const linhas = ativos.map(f => {
+    const p = F.pres[presId(dia, f.id)], st = p && p.status;
+    const valor = p ? p.valor : f.valorCombinado;
+    return `<div class="frow" role="row">
+      <div class="fnome"><b title="${esc(f.nome)}">${esc(f.nome)}</b><span>${esc(f.funcao || 'Sem função')} · ${esc(nomeSetor(f.setor))}</span></div>
+      <div class="fval">${brl(valor)}</div>
+      <div class="fseg" role="group" aria-label="Presença de ${esc(f.nome)}">
+        <button class="p ${st === 'presente' ? 'on' : ''}" aria-pressed="${st === 'presente'}" data-act="marcar" data-id="${esc(f.id)}" data-st="presente">Presente</button>
+        <button class="f ${st === 'faltou' ? 'on' : ''}" aria-pressed="${st === 'faltou'}" data-act="marcar" data-id="${esc(f.id)}" data-st="faltou">Faltou</button></div>
+      <div class="fact">
+        ${st === 'presente' ? `<button class="btn ${p.pago ? 'pgok' : 'pg'}" data-act="pagoFree" data-id="${esc(f.id)}">${p.pago ? 'Pago · desfazer' : 'Marcar pago'}</button>` : ''}
+        <button class="ib" data-act="freeEditar" data-id="${esc(f.id)}" aria-label="Editar ${esc(f.nome)}">${ico('edit')}</button></div></div>`;
+  }).join('');
+  const vazioDia = F.lista.length
+    ? 'Nenhum freelancer ativo. Reative um pelo lápis ou cadastre um novo.'
+    : 'Nenhum freelancer cadastrado ainda. Use "+ Novo freelancer" para o primeiro.';
+  // resumo do mês
+  const mesRows = F.lista.map(f => {
+    const ps = Object.values(F.pres).filter(p => p.freelaId === f.id && p.data.slice(0, 7) === mes);
+    const pr = ps.filter(p => p.status === 'presente'), fa = ps.filter(p => p.status === 'faltou').length;
+    const tot = pr.reduce((a, p) => a + (Number(p.valor) || 0), 0), pg = pr.filter(p => p.pago).reduce((a, p) => a + (Number(p.valor) || 0), 0);
+    return { f, dias:pr.length, fa, tot, pg, ab:tot - pg, abN:pr.filter(p => !p.pago).length, ps:ps.length };
+  }).filter(x => x.f.ativo !== false || x.ps > 0);
+  const tt = mesRows.reduce((a, x) => ({ tot:a.tot + x.tot, pg:a.pg + x.pg, ab:a.ab + x.ab }), { tot:0, pg:0, ab:0 });
+  const mRows = mesRows.map(x => `<div class="mrow" role="row">
+      <div class="fnome"><b>${esc(x.f.nome)}</b><span>${esc(x.f.funcao || 'Sem função')}${x.f.ativo === false ? ' · inativo' : ''}</span></div>
+      <div class="mc ${x.dias ? '' : 'z'}" data-l="Dias">${x.dias}</div><div class="mc ${x.fa ? '' : 'z'}" data-l="Faltas">${x.fa}</div>
+      <div class="mc" data-l="Total">${brl(x.tot)}</div><div class="mc" data-l="Pago">${brl(x.pg)}</div><div class="mc ${x.ab ? '' : 'z'}" data-l="A pagar" style="${x.ab ? 'color:var(--warn)' : ''}">${brl(x.ab)}</div>
+      <div class="fact">${x.ab > 0 ? `<button class="btn" data-act="pagarMes" data-id="${esc(x.f.id)}" style="height:44px">Pagar tudo</button>` : ''}</div></div>`).join('');
+  return head + erro + `<div class="stack">
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Presença do dia</h3>${nav}</div>
+      <div class="pb" style="border-bottom:1px solid var(--line)"><div class="rcards">${cards}</div></div>
+      <div role="table">${linhas || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazioDia}</div>`}</div></section>
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Resumo de ${esc(mesNome(mes, true).toLowerCase())}</h3><span class="muted" style="font-size:13px">Total ${brl(tt.tot)} · pago ${brl(tt.pg)} · a pagar <b style="color:${tt.ab ? 'var(--warn)' : 'var(--t1)'}">${brl(tt.ab)}</b></span></div>
+      <div role="table"><div class="mrow hd" role="row"><span>Freelancer</span><span style="text-align:right">Dias</span><span style="text-align:right">Faltas</span><span style="text-align:right">Total</span><span style="text-align:right">Pago</span><span style="text-align:right">A pagar</span><span></span></div>
+      ${mRows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Sem presenças neste mês.</div>`}</div></section></div>`;
+}
+
+function freelancersCard(s) {
+  const F = s.free, hoje = hojeStr();
+  const cab = `<div class="bh" style="margin-bottom:16px"><h2>Freelancers hoje</h2><a href="#/freelancers" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>`;
+  if (F.lista === null) return `<div class="box">${cab}<div class="skel" style="width:60%"></div></div>`;
+  const ativos = F.lista.filter(f => f.ativo !== false);
+  if (!ativos.length) return `<div class="box vazio-mini">${cab}<p>Cadastre os freelancers para marcar presença e ver o valor a pagar do dia.</p><div><a class="btn" href="#/freelancers" style="text-decoration:none">Cadastrar freelancer</a></div></div>`;
+  const r = resumoDia(F, hoje), nome = id => (F.lista.find(f => f.id === id) || {}).nome || '—';
+  const sem = ativos.length - r.presentes - r.faltas;
+  return `<div class="box">${cab}
+    <div class="resumo4"><div class="mini"><div class="l"><span class="dot" style="background:var(--ok)"></span>Presentes</div><div class="v">${r.presentes} <span>de ${ativos.length}</span></div></div>
+      <div class="mini"><div class="l"><span class="dot" style="background:var(--warn)"></span>A pagar</div><div class="v">${brl(r.aPagar)}</div></div></div>
+    ${r.pres.slice().sort((a, b) => nome(a.freelaId).localeCompare(nome(b.freelaId))).slice(0, 4).map(p => `<div class="prox"><div class="n"><b>${esc(nome(p.freelaId))}</b><span>${p.pago ? 'pago' : 'a pagar'}</span></div><div class="r">${brl(p.valor)}</div></div>`).join('')}
+    ${sem > 0 ? `<p class="muted" style="font-size:12px;margin-top:10px">${sem} ainda sem marcação hoje.</p>` : ''}</div>`;
+}
+
+function formFree(f) {
+  const v = f ? String(f.valorCombinado).replace('.', ',') : '';
+  return `<form data-form="freelancer" data-id="${f ? esc(f.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Nome</span><input name="nome" value="${f ? esc(f.nome) : ''}" maxlength="80" placeholder="Ex.: Carlos Henrique" autocomplete="off"></label>
+    <label class="f"><span>Função</span><input name="funcao" value="${f ? esc(f.funcao || '') : ''}" maxlength="60" placeholder="Ex.: Garçom, Churrasqueiro" autocomplete="off"></label>
+    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${f && f.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Valor combinado por dia (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="150,00" autocomplete="off"></label>
+    ${f ? `<label class="f"><span>Situação</span><select name="ativo"><option value="1" ${f.ativo !== false ? 'selected' : ''}>Ativo (aparece na lista de presença)</option><option value="0" ${f.ativo === false ? 'selected' : ''}>Inativo (some da lista, mantém o histórico)</option></select></label>` : ''}
+    <div class="acoes"><button class="btn pri full" type="submit">${f ? 'Salvar alterações' : 'Salvar freelancer'}</button></div></form>`;
+}
+async function salvarFree(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const nome = (d.nome || '').trim(), valor = parseValor(d.valor);
+  if (!nome) return erro('Escreva o nome do freelancer.');
+  if (!(valor > 0)) return erro('Digite o valor combinado por dia, maior que zero. Exemplo: 150,00');
+  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  btn.disabled = true;
+  try {
+    const F = Store.s.free, id = f.dataset.id;
+    let lista;
+    if (id) {
+      const mud = { nome, funcao:(d.funcao || '').trim(), setor:d.setor, valorCombinado:valor, ativo:d.ativo !== '0' };
+      await colFree().doc(id).update(mud);
+      lista = F.lista.map(x => x.id === id ? { ...x, ...mud } : x);
+    } else {
+      const novo = { nome, funcao:(d.funcao || '').trim(), setor:d.setor, valorCombinado:valor, ativo:true, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const ref = colFree().doc();
+      await ref.set(novo);
+      lista = F.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    }
+    lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    fecharModal();
+    Store.set({ free:{ ...Store.s.free, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+
 /* ============ views ============ */
 const V = {};
 
@@ -934,7 +1123,7 @@ function painelHTML(s, nomeCurto) {
     </section>
     <section class="three">
       ${futuro('Tarefas de hoje', 'As tarefas de cada setor com prazo para hoje ficam nesta lista.')}
-      ${futuro('Freelancers hoje', 'Presentes, escalados e o valor a pagar no dia, pela lista de presença.')}
+      ${freelancersCard(s)}
       <div class="box vazio-mini"><h2>Energia solar</h2>${en
         ? `<div><span class="big">${(Number(en.kWh) || 0).toLocaleString('pt-BR')} kWh</span> <span class="muted" style="font-size:13px">créditos da usina no mês</span></div>
            <p>Pela distribuidora sairia <b style="color:var(--t1)">${brl(en.valorDistribuidora)}</b>. Pela usina: <b style="color:var(--t1)">${brl(en.valorUsina)}</b>.</p>
@@ -957,7 +1146,7 @@ function page(id, s, nomeCurto) {
   if (set) return cab(set.nome, 'Setor da empresa. Visível para Luiz, Eliana e gerente.') +
     vazio(set.id, 'Nada por aqui ainda', 'Estoque, vendas, custos, metas, tarefas e boletos deste setor entram aqui nos próximos blocos.');
   if (id === 'boletos') return boletosHTML(s);
-  if (id === 'freelancers') return cab('Freelancers', 'Lista de presença e valor combinado de cada um.') + vazio('freelancers', 'Lista de presença em construção', 'Aqui você vai cadastrar freelancers e marcar presença por dia.');
+  if (id === 'freelancers') return freelancersHTML(s);
   if (id === 'relatorios') return cab('Relatórios', 'Fechamento por setor e relatório geral.') + vazio('relatorios', 'Relatórios em construção', 'Depois que os lançamentos existirem, o fechamento de cada setor e o geral saem daqui em PDF.');
   if (id === 'pessoal') return cab('Pessoal', 'Vida pessoal do casal. <span class="badge ind">Só Luiz e Eliana</span>') +
     vazio('pessoal', 'Espaço pessoal vazio', 'O gerente não enxerga esta área, nem nos dados. Seus gastos e as entradas de aluguéis e rendas extras entram aqui.');
@@ -1008,6 +1197,7 @@ function render() {
     const id = rotas.some(r => r.id === s.rota) || ROTAS_EXTRAS[s.rota] ? s.rota : 'painel';
     aposPagina(id, s);
     if (s.boletos.lista === null) carregarBoletos();
+    if (s.free.lista === null) carregarFree();
   }
   ultimaFase = s.fase;
 }
@@ -1090,6 +1280,46 @@ const acoes = {
       fecharModal(); Store.set({ boletos:{ ...B, lista:B.lista.filter(x => x.id !== id), erro:null } });
     } catch (e) { fecharModal(); Store.set({ boletos:{ ...B, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
+  freeNovo() { abrirModal('Novo freelancer', formFree(null)); },
+  freeEditar(el) { const f = Store.s.free.lista.find(x => x.id === el.dataset.id); if (f) abrirModal('Editar freelancer', formFree(f)); },
+  freeRecarregar() { Store.set({ free:{ ...Store.s.free, lista:null, erro:null } }); },
+  diaMover(el) { const dia = diaAdd(diaFree(Store.s), Number(el.dataset.d)); if (dia > hojeStr()) return; irParaDia(dia); },
+  diaHoje() { irParaDia(hojeStr()); },
+  async marcar(el) {
+    const F = Store.s.free, dia = diaFree(Store.s), fid = el.dataset.id, st = el.dataset.st, f = F.lista.find(x => x.id === fid); if (!f) return;
+    const id = presId(dia, fid), ant = F.pres[id];
+    if (ant && ant.status === st) return;
+    const rec = { data:dia, freelaId:fid, status:st, valor: ant ? ant.valor : f.valorCombinado, pago:false, pagoEm:null, por:Store.s.user.uid };
+    Store.set({ free:{ ...F, erro:null, pres:{ ...F.pres, [id]:{ id, ...rec } } } });
+    try { await colPres().doc(id).set(rec); }
+    catch (e) {
+      const G = Store.s.free, pres = { ...G.pres }; if (ant) pres[id] = ant; else delete pres[id];
+      Store.set({ free:{ ...G, pres, erro:'Não foi possível salvar a presença. Voltou ao estado anterior. ' + msgErro(e) } });
+    }
+  },
+  async pagoFree(el) {
+    const F = Store.s.free, dia = diaFree(Store.s), id = presId(dia, el.dataset.id), ant = F.pres[id]; if (!ant || ant.status !== 'presente') return;
+    const mud = { pago:!ant.pago, pagoEm: ant.pago ? null : hojeStr() };
+    Store.set({ free:{ ...F, erro:null, pres:{ ...F.pres, [id]:{ ...ant, ...mud } } } });
+    try { await colPres().doc(id).update(mud); }
+    catch (e) { const G = Store.s.free; Store.set({ free:{ ...G, pres:{ ...G.pres, [id]:ant }, erro:'Não foi possível salvar o pagamento. Voltou ao estado anterior. ' + msgErro(e) } }); }
+  },
+  pagarMes(el) {
+    const F = Store.s.free, mes = diaFree(Store.s).slice(0, 7), f = F.lista.find(x => x.id === el.dataset.id); if (!f) return;
+    const ab = Object.values(F.pres).filter(p => p.freelaId === f.id && p.data.slice(0, 7) === mes && p.status === 'presente' && !p.pago);
+    if (!ab.length) return;
+    abrirModal('Pagar o mês', `<p style="font-size:14px;margin-bottom:16px">Marcar como pago <b style="color:var(--t1)">${nDias(ab.length)}</b> de <b style="color:var(--t1)">${esc(f.nome)}</b> em ${esc(mesNome(mes, true))}, total de <b style="color:var(--t1)">${brl(ab.reduce((a, p) => a + (Number(p.valor) || 0), 0))}</b>?</p>
+      <div class="acoes"><button class="btn pri full" data-act="pagarMesOk" data-id="${esc(f.id)}">Marcar tudo como pago</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async pagarMesOk(el) {
+    const F = Store.s.free, mes = diaFree(Store.s).slice(0, 7), fid = el.dataset.id, hoje = hojeStr();
+    const ab = Object.values(F.pres).filter(p => p.freelaId === fid && p.data.slice(0, 7) === mes && p.status === 'presente' && !p.pago);
+    try {
+      const b = db.batch(); ab.forEach(p => b.update(colPres().doc(p.id), { pago:true, pagoEm:hoje })); await b.commit();
+      const pres = { ...Store.s.free.pres }; ab.forEach(p => { pres[p.id] = { ...p, pago:true, pagoEm:hoje }; });
+      fecharModal(); Store.set({ free:{ ...Store.s.free, pres, erro:null } });
+    } catch (e) { fecharModal(); Store.set({ free:{ ...Store.s.free, erro:'Não foi possível marcar como pago. ' + msgErro(e) } }); }
+  },
   async reenviar() {
     try { await auth.currentUser.sendEmailVerification(); aviso('E-mail reenviado. Pode demorar um minuto.', 'ok'); }
     catch (e) { aviso(msgErro(e)); }
@@ -1144,6 +1374,7 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(f).entries());
   if (f.dataset.form === 'boleto') { await salvarBoleto(f, d); return; }
+  if (f.dataset.form === 'freelancer') { await salvarFree(f, d); return; }
   const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
   try {
     if (f.dataset.form === 'entrar') await entrar(d.email || '', d.senha || '');
