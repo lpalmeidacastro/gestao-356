@@ -478,7 +478,7 @@ try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('chang
 const Store = {
   s: { fase:'carregando', user:null, perfil:null, rota:'painel', online:navigator.onLine,
        painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null },
-       boletos:{ lista:null, filtro:'abertos', erro:null },
+       boletos:{ lista:null, filtro:'abertos', aba:'boletos', erro:null }, contas:{ defs:null, pag:{}, mes:mesAtual(), erro:null },
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
@@ -716,12 +716,163 @@ function resumoBoletos(lista) {
 const somaB = a => a.reduce((s, b) => s + (Number(b.valor) || 0), 0);
 const nBol = n => n + (n === 1 ? ' boleto' : ' boletos');
 const badgeSit = s => `<span class="badge ${s === 'pago' ? 'ok' : s === 'vencido' ? 'err' : 'warn'}">${s === 'pago' ? 'Pago' : s === 'vencido' ? 'Vencido' : 'A vencer'}</span>`;
-const vencidosCount = s => s.boletos.lista ? s.boletos.lista.filter(b => sitBoleto(b) === 'vencido').length : 0;
+const vencidosCount = s => (s.boletos.lista ? s.boletos.lista.filter(b => sitBoleto(b) === 'vencido').length : 0) + contasPseudo(s).filter(b => sitBoleto(b) === 'vencido').length;
+
+/* ============ contas agendadas (únicas ou recorrentes) ============ */
+const colContas = () => db.collection(`empresas/${EMPRESA}/contas`);
+const colContasPag = () => db.collection(`empresas/${EMPRESA}/contasPag`);
+const diasNoMes = m => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo, 0).getDate(); };
+let contasBusca = false;
+async function carregarContas(forcar) {
+  if (contasBusca || (Store.s.contas.defs && !forcar)) return;
+  contasBusca = true;
+  try {
+    const [a, b] = await Promise.all([colContas().get(), colContasPag().get()]);
+    const defs = a.docs.map(d => ({ id:d.id, ...d.data() })), pag = {};
+    b.docs.forEach(d => { pag[d.id] = { id:d.id, ...d.data() }; });
+    Store.set({ contas:{ ...Store.s.contas, defs, pag, erro:null } });
+  } catch (e) { console.error(e); Store.set({ contas:{ ...Store.s.contas, defs:Store.s.contas.defs || [], erro:'Não foi possível carregar as contas agendadas. ' + msgErro(e) } }); }
+  finally { contasBusca = false; }
+}
+/* uma "ocorrência" é a conta de um mês: a recorrente vale em todo mês a partir do início; a única, só no mês do vencimento */
+function ocorrencias(defs, pag, mes) {
+  const out = [];
+  defs.forEach(c => {
+    const p = pag[c.id + '_' + mes];
+    let venc;
+    if (c.recorrente) {
+      if (c.inicio && mes < c.inicio) return;
+      if (c.ativa === false && mes >= mesAtual() && !p) return;
+      venc = mes + '-' + pad(Math.min(Math.max(Number(c.dia) || 1, 1), diasNoMes(mes)));
+    } else {
+      if (!c.vencimento || c.vencimento.slice(0, 7) !== mes) return;
+      venc = c.vencimento;
+    }
+    out.push({ id:c.id + '_' + mes, contaId:c.id, mes, descricao:c.descricao, setor:c.setor, recorrente:!!c.recorrente, vencimento:venc,
+      valor:(p && p.valor != null) ? p.valor : c.valor, pago:!!(p && p.pago), pagoEm:p ? (p.pagoEm || null) : null, conta:'sim' });
+  });
+  return out.sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao));
+}
+/* contas dos últimos 3 meses até o mês atual, no formato de boleto, para painel e selo do menu */
+function contasPseudo(s) {
+  const C = s.contas; if (!C.defs) return [];
+  const m0 = mesAtual(); let r = [];
+  for (let i = -3; i <= 0; i++) r = r.concat(ocorrencias(C.defs, C.pag, mesAdd(m0, i)));
+  return r;
+}
+const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div></div>`;
+function contasHTML(s) {
+  const C = s.contas, mes = C.mes;
+  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
+    <button class="btn pri" data-act="contaNova">+ Nova conta agendada</button></div>` + abasContas('contas');
+  const erro = C.erro ? `<div class="alert err on" role="alert">${esc(C.erro)} <button class="btn ghost" data-act="contasRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (C.defs === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const oc = ocorrencias(C.defs, C.pag, mes);
+  const v = oc.filter(x => sitBoleto(x) === 'vencido'), av = oc.filter(x => sitBoleto(x) === 'avencer'), pg = oc.filter(x => x.pago);
+  const nC = n => n + (n === 1 ? ' conta' : ' contas');
+  const card = (cor, label, a) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${brl(somaB(a))}</span><span class="q">${nC(a.length)}</span></div>`;
+  const cards = card('var(--err)', 'Vencidas', v) + card('var(--warn)', 'A vencer', av) + card('var(--ok)', 'Pagas', pg) + card('var(--pur)', 'Total do mês', oc);
+  const nav = `<div class="tabs2 noprint"><span class="muted" style="font-size:13px">Contas que se repetem todo mês aparecem sozinhas em cada mês.</span>
+    <div class="mes" role="group" aria-label="Mês"><button data-act="cmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="cmes" data-d="1" aria-label="Próximo mês" ${mes < mesAdd(mesAtual(), 12) ? '' : 'disabled'}>${ico('dir')}</button></div></div>`;
+  const rows = oc.map(b => {
+    const st = sitBoleto(b);
+    return `<div class="brow" role="row">
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${b.recorrente ? 'todo mês' : 'só uma vez'}</span></div>
+      <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
+      <div class="bval">${brl(b.valor)}</div>
+      <div class="bst">${badgeSit(st)}</div>
+      <div class="bact">
+        <button class="ib" data-act="contaEditar" data-id="${esc(b.contaId)}" aria-label="Editar conta">${ico('edit')}</button>
+        ${b.pago ? `<button class="btn" data-act="contaDesfazer" data-c="${esc(b.contaId)}" data-m="${b.mes}">Desfazer</button>` : `<button class="btn pg" data-act="contaPagar" data-c="${esc(b.contaId)}" data-m="${b.mes}">Marcar pago</button>`}
+      </div></div>`;
+  }).join('');
+  const vazio = C.defs.length ? 'Nenhuma conta neste mês.' : 'Nenhuma conta agendada ainda. Use "+ Nova conta agendada" (luz, água, internet, aluguel...).';
+  return head + erro + `<div class="stack">${nav}
+    <section aria-label="Resumo" class="rcards">${cards}</section>
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Contas de ${esc(mesNome(mes, true))}</h3></div>
+      <div role="table"><div class="brow hd" role="row"><span>Conta</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazio}</div>`}</div></section></div>`;
+}
+function formConta(c) {
+  const admin = Store.s.perfil.papel === 'admin', rec = c ? !!c.recorrente : true;
+  const v = c ? String(c.valor).replace('.', ',') : '';
+  return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
+    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
+    <div data-so="rec" ${rec ? '' : 'class="hide"'}>
+      <label class="f"><span>Dia do vencimento (1 a 31)</span><input name="dia" type="number" min="1" max="31" inputmode="numeric" value="${c && c.dia ? esc(c.dia) : ''}" placeholder="Ex.: 10"></label>
+      <label class="f"><span>Começa em</span><input name="inicio" type="month" value="${c && c.inicio ? esc(c.inicio) : mesAtual()}"></label>
+      ${c ? `<label class="f"><span>Situação</span><select name="ativa"><option value="1" ${c.ativa === false ? '' : 'selected'}>Ativa (continua todo mês)</option><option value="0" ${c.ativa === false ? 'selected' : ''}>Encerrada (não gera mais contas)</option></select></label>` : ''}
+    </div>
+    <div data-so="uma" ${rec ? 'class="hide"' : ''}>
+      <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${c && c.vencimento ? esc(c.vencimento) : hojeStr()}"></label>
+    </div>
+    <label class="f"><span>Valor (R$) <span class="muted" style="font-weight:400">· nas contas que variam, ajuste na hora de pagar</span></span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${c ? 'Salvar alterações' : 'Salvar conta'}</button>
+    ${c && admin ? `<button type="button" class="btn bad full" data-act="contaApagar" data-id="${esc(c.id)}">Apagar conta e histórico</button>` : ''}</div></form>`;
+}
+async function salvarConta(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), rec = d.tipo !== 'uma';
+  if (!desc) return erro('Escreva que conta é.');
+  if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
+  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  const base = { descricao:desc, setor:d.setor, valor, recorrente:rec };
+  if (rec) {
+    const dia = Number(d.dia);
+    if (!(Number.isInteger(dia) && dia >= 1 && dia <= 31)) return erro('Digite o dia do vencimento, de 1 a 31.');
+    if (!/^\d{4}-\d{2}$/.test(d.inicio || '')) return erro('Escolha o mês em que a conta começa.');
+    Object.assign(base, { dia, inicio:d.inicio, vencimento:null });
+    if (f.dataset.id) base.ativa = d.ativa !== '0';
+  } else {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.vencimento || '')) return erro('Escolha a data de vencimento.');
+    Object.assign(base, { vencimento:d.vencimento, dia:null, inicio:null, ativa:true });
+  }
+  btn.disabled = true;
+  try {
+    const C = Store.s.contas, id = f.dataset.id;
+    let defs;
+    if (id) { await colContas().doc(id).update(base); defs = C.defs.map(x => x.id === id ? { ...x, ...base } : x); }
+    else {
+      const novo = { ...base, ativa:true, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const ref = colContas().doc(); await ref.set(novo);
+      defs = C.defs.concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    }
+    fecharModal();
+    Store.set({ contas:{ ...Store.s.contas, defs, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+function formContaPag(oc) {
+  return `<form data-form="contaPag" data-c="${esc(oc.contaId)}" data-m="${oc.mes}" novalidate>
+    <div class="alert" role="alert"></div>
+    <p style="font-size:14px;margin-bottom:16px"><b style="color:var(--t1)">${esc(oc.descricao)}</b> · vence ${dataBR(oc.vencimento)}</p>
+    <label class="f"><span>Valor pago (R$)</span><input name="valor" inputmode="decimal" value="${esc(String(oc.valor).replace('.', ','))}" autocomplete="off"></label>
+    <label class="f"><span>Data do pagamento</span><input name="pagoEm" type="date" value="${hojeStr()}" max="${hojeStr()}"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">Confirmar pagamento</button></div></form>`;
+}
+async function salvarContaPag(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const valor = parseValor(d.valor), cid = f.dataset.c, mes = f.dataset.m;
+  if (!(valor > 0)) return erro('Digite o valor pago. Exemplo: 289,90');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d.pagoEm || '') || d.pagoEm > hojeStr()) return erro('Escolha a data do pagamento (hoje ou antes).');
+  btn.disabled = true;
+  try {
+    const rec = { contaId:cid, mes, pago:true, pagoEm:d.pagoEm, valor, por:Store.s.user.uid };
+    await colContasPag().doc(cid + '_' + mes).set(rec, { merge:true });
+    const C = Store.s.contas; fecharModal();
+    Store.set({ contas:{ ...C, pag:{ ...C.pag, [cid + '_' + mes]:{ id:cid + '_' + mes, ...rec } }, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
 
 function boletosHTML(s) {
+  if (s.boletos.aba === 'contas') return contasHTML(s);
   const B = s.boletos, f = B.filtro;
-  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Boletos</h1></div>
-    <button class="btn pri" data-act="boletoNovo">+ Novo boleto</button></div>`;
+  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
+    <button class="btn pri" data-act="boletoNovo">+ Novo boleto</button></div>` + abasContas('boletos');
   const erro = B.erro ? `<div class="alert err on" role="alert">${esc(B.erro)} <button class="btn ghost" data-act="boletosRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
   if (B.lista === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
   const r = resumoBoletos(B.lista);
@@ -758,15 +909,16 @@ function boletosHTML(s) {
 
 function boletosCard(s) {
   const lista = s.boletos.lista;
-  const cab = `<div class="bh" style="margin-bottom:16px"><h2>Boletos</h2><a href="#/boletos" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>`;
-  if (lista === null) return `<div class="box">${cab}<div class="skel" style="width:60%"></div></div>`;
-  const r = resumoBoletos(lista);
+  const cab = `<div class="bh" style="margin-bottom:16px"><h2>Contas a pagar</h2><a href="#/boletos" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>`;
+  if (lista === null || s.contas.defs === null) return `<div class="box">${cab}<div class="skel" style="width:60%"></div></div>`;
+  const tudo = lista.concat(contasPseudo(s));
+  const r = resumoBoletos(tudo);
   const m = (cor, l, a) => `<div class="mini"><div class="l"><span class="dot" style="background:${cor}"></span>${l}</div><div class="v">${a.length} <span>· ${brl(somaB(a))}</span></div></div>`;
   const prox = r.aberto.slice().sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 3);
   return `<div class="box">${cab}
-    ${lista.length ? `<div class="resumo4">${m('var(--err)', 'Vencidos', r.venc)}${m('var(--warn)', 'A vencer', r.av)}${m('var(--ok)', 'Pagos no mês', r.pg)}${m('var(--pur)', 'Não pagos', r.aberto)}</div>
-      ${prox.map(b => `<div class="prox"><div class="n"><b>${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${dataBR(b.vencimento)} (${esc(quandoTxt(b))})</span></div><div class="r">${brl(b.valor)}${badgeSit(sitBoleto(b))}</div></div>`).join('')}`
-    : `<p class="muted" style="font-size:14px">Vencidos, a vencer e pagos aparecem aqui quando você cadastrar o primeiro boleto.</p><div style="margin-top:12px"><a class="btn" href="#/boletos" style="text-decoration:none">Cadastrar boleto</a></div>`}</div>`;
+    ${tudo.length ? `<div class="resumo4">${m('var(--err)', 'Vencidos', r.venc)}${m('var(--warn)', 'A vencer', r.av)}${m('var(--ok)', 'Pagos no mês', r.pg)}${m('var(--pur)', 'Não pagos', r.aberto)}</div>
+      ${prox.map(b => `<div class="prox"><div class="n"><b>${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${b.conta ? 'conta · ' : ''}${dataBR(b.vencimento)} (${esc(quandoTxt(b))})</span></div><div class="r">${brl(b.valor)}${badgeSit(sitBoleto(b))}</div></div>`).join('')}`
+    : `<p class="muted" style="font-size:14px">Vencidos, a vencer e pagos aparecem aqui quando você cadastrar o primeiro boleto ou conta agendada.</p><div style="margin-top:12px"><a class="btn" href="#/boletos" style="text-decoration:none">Cadastrar</a></div>`}</div>`;
 }
 
 /* janela (modal) fora do #root: não some quando a tela redesenha */
@@ -1641,7 +1793,7 @@ function rotasDoPerfil(s) {
   const r = [{ id:'painel', nome:'Painel', ic:'painel', grp:'Empresa' }];
   SETORES.forEach(x => r.push({ id:x.id, nome:x.nome, ic:x.id, grp:'Setores' }));
   if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Setores' });
-  r.push({ id:'boletos', nome:'Boletos', ic:'boletos', grp:'Controle' });
+  r.push({ id:'boletos', nome:'Contas a pagar', ic:'boletos', grp:'Controle' });
   r.push({ id:'freelancers', nome:'Freelancers', ic:'freelancers', grp:'Controle' });
   r.push({ id:'energia', nome:'Energia solar', ic:'energia', grp:'Controle' });
   r.push({ id:'relatorios', nome:'Relatórios', ic:'relatorios', grp:'Controle' });
@@ -1668,7 +1820,7 @@ V.app = s => {
   const tab = (id, nome, ic, on) => `<a href="#/${id}" class="${on ? 'on' : ''}" ${on ? 'aria-current="page"' : ''}>${ico(ic)}${nome}</a>`;
   const tabbar = tab('painel', 'Painel', 'painel', atual.id === 'painel')
     + tab('setores', 'Setores', 'importados', ehSetor || atual.id === 'setores')
-    + tab('boletos', 'Boletos', 'boletos', atual.id === 'boletos')
+    + tab('boletos', 'Contas', 'boletos', atual.id === 'boletos')
     + tab('freelancers', 'Presença', 'freelancers', atual.id === 'freelancers')
     + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','equipe','diag'].includes(atual.id));
   return `
@@ -1862,6 +2014,7 @@ function render() {
     const id = rotas.some(r => r.id === s.rota) || ROTAS_EXTRAS[s.rota] ? s.rota : 'painel';
     aposPagina(id, s);
     if (s.boletos.lista === null) carregarBoletos();
+    if (s.contas.defs === null) carregarContas();
     if (s.free.lista === null) carregarFree();
     if (s.tar.lista === null) carregarTar();
   }
@@ -1900,6 +2053,33 @@ const acoes = {
   },
   metrica(el) { Store.set({ painel:{ ...Store.s.painel, metrica:el.dataset.m } }); },
   recarregarPainel() { Store.set({ painel:{ ...Store.s.painel, dados:null, chave:null, erro:null } }); },
+  abaConta(el) { Store.set({ boletos:{ ...Store.s.boletos, aba:el.dataset.a } }); },
+  contaNova() { abrirModal('Nova conta agendada', formConta(null)); },
+  contaEditar(el) { const c = Store.s.contas.defs.find(x => x.id === el.dataset.id); if (c) abrirModal('Editar conta agendada', formConta(c)); },
+  contasRecarregar() { Store.set({ contas:{ ...Store.s.contas, defs:null, erro:null } }); },
+  cmes(el) { const C = Store.s.contas, m = mesAdd(C.mes, Number(el.dataset.d)); if (m > mesAdd(mesAtual(), 12)) return; Store.set({ contas:{ ...C, mes:m } }); },
+  contaPagar(el) { const C = Store.s.contas, oc = ocorrencias(C.defs, C.pag, el.dataset.m).find(x => x.contaId === el.dataset.c); if (oc) abrirModal('Marcar como paga', formContaPag(oc)); },
+  async contaDesfazer(el) {
+    const C = Store.s.contas, id = el.dataset.c + '_' + el.dataset.m;
+    try {
+      await colContasPag().doc(id).set({ contaId:el.dataset.c, mes:el.dataset.m, pago:false, pagoEm:null, por:Store.s.user.uid }, { merge:true });
+      Store.set({ contas:{ ...C, pag:{ ...C.pag, [id]:{ ...(C.pag[id] || { id }), pago:false, pagoEm:null } }, erro:null } });
+    } catch (e) { Store.set({ contas:{ ...C, erro:'Não foi possível desfazer. ' + msgErro(e) } }); }
+  },
+  contaApagar(el) {
+    const c = Store.s.contas.defs.find(x => x.id === el.dataset.id); if (!c) return;
+    abrirModal('Apagar conta', `<p style="font-size:14px;margin-bottom:16px">Apagar <b style="color:var(--t1)">${esc(c.descricao)}</b> e todo o histórico de pagamentos dela? Isso não dá para desfazer. Para só parar de repetir, use "Encerrada" em Editar.</p>
+      <div class="acoes"><button class="btn bad full" data-act="contaApagarOk" data-id="${esc(c.id)}">Apagar conta</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async contaApagarOk(el) {
+    const id = el.dataset.id, C = Store.s.contas;
+    try {
+      const snap = await colContasPag().where('contaId', '==', id).get();
+      const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); b.delete(colContas().doc(id)); await b.commit();
+      const pag = { ...C.pag }; snap.docs.forEach(d => { delete pag[d.id]; });
+      fecharModal(); Store.set({ contas:{ ...C, defs:C.defs.filter(x => x.id !== id), pag, erro:null } });
+    } catch (e) { fecharModal(); Store.set({ contas:{ ...C, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
   boletoNovo() { abrirModal('Novo boleto', formBoleto(null)); },
   boletoEditar(el) { const b = Store.s.boletos.lista.find(x => x.id === el.dataset.id); if (b) abrirModal('Editar boleto', formBoleto(b)); },
   fecharModal() { fecharModal(); },
@@ -2187,6 +2367,8 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(f).entries());
   if (f.dataset.form === 'boleto') { await salvarBoleto(f, d); return; }
+  if (f.dataset.form === 'conta') { await salvarConta(f, d); return; }
+  if (f.dataset.form === 'contaPag') { await salvarContaPag(f, d); return; }
   if (f.dataset.form === 'freelancer') { await salvarFree(f, d); return; }
   if (f.dataset.form === 'lancamento') { await salvarLanc(f, d); return; }
   if (f.dataset.form === 'produto') { await salvarProd(f, d); return; }
@@ -2208,6 +2390,10 @@ document.addEventListener('input', e => {
   const g = n => parseValor(f.querySelector('[name=' + n + ']').value), sd = g('semDesconto'), pu = g('pagoUsina'), pe = g('pagoEnel');
   const box = f.querySelector('#enPrev'); if (!box) return;
   box.textContent = (sd > 0 && pu >= 0 && pe >= 0) ? prevEnergia({ semDesconto:sd, pagoUsina:pu, pagoEnel:pe }) : 'Total e economia aparecem aqui conforme você digita.';
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t && t.name === 'tipo' && t.closest && t.closest('form[data-form=conta]')) { const f = t.closest('form'); f.querySelectorAll('[data-so]').forEach(x => x.classList.toggle('hide', x.dataset.so !== t.value)); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
 
