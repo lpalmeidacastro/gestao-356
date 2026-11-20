@@ -193,6 +193,57 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 .lista a:first-child{border-top:0}
 .lista a svg{color:var(--t3)}
 
+/* boletos */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{height:36px;padding:0 14px;border-radius:9999px;border:1px solid var(--line2);background:transparent;color:#a3a5b2;font-size:13px;font-weight:510;cursor:pointer;transition:background-color .2s var(--ease)}
+.chip:hover{background:rgba(255,255,255,.05)}
+.chip.on{border-color:rgba(185,140,255,.5);background:rgba(139,61,255,.18);color:var(--t1)}
+.rcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.rc{text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:14px;background:var(--card);border:1px solid var(--line);transition:transform .22s var(--ease),border-color .22s var(--ease)}
+.rc:hover{transform:translateY(-2px)}
+.rc.on{border-color:rgba(185,140,255,.55)}
+.rc .l{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t3);font-weight:510}
+.rc .v{font-family:var(--titulo);font-size:24px;color:var(--t1);overflow-wrap:anywhere}
+.rc .q{font-size:12px;color:var(--t3)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.brow{display:grid;grid-template-columns:minmax(0,2.6fr) 1.2fr 1fr .9fr auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
+.brow:hover{background:rgba(255,255,255,.025)}
+.brow.hd{background:rgba(255,255,255,.02);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
+.brow.hd:hover{background:rgba(255,255,255,.02)}
+.bnome{min-width:0;display:flex;flex-direction:column}
+.bnome b{color:var(--t1);font-weight:510;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bnome span,.bven span{font-size:12px;color:var(--t3)}
+.bven{font-variant-numeric:tabular-nums}
+.bval{text-align:right;color:var(--t1);font-weight:510;font-variant-numeric:tabular-nums}
+.bact{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:#a3a5b2;cursor:pointer;display:grid;place-items:center;position:relative;transition:background-color .2s var(--ease)}
+.ib:hover{background:rgba(255,255,255,.06)}
+.ib.tem::after{content:"";position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.btn.pg{background:#8b3dff;border-color:transparent;color:#fff;font-weight:590;height:44px}
+.btn.bad{background:rgba(255,92,122,.1);border-color:rgba(255,92,122,.3);color:#ff8fa3}
+.nb{margin-left:auto;font-size:11px;font-weight:590;color:#ff8fa3;background:rgba(255,92,122,.12);padding:1px 8px;border-radius:9999px}
+.prox{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.prox .n{min-width:0}
+.prox .n b{display:block;color:var(--t1);font-weight:400;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prox .n span{font-size:12px;color:var(--t3)}
+.prox .r{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:var(--t1);font-size:14px;font-weight:510}
+.resumo4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.resumo4 .mini .l{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t3)}
+.resumo4 .mini .v{font-size:18px;font-weight:590;color:var(--t1);margin-top:4px}
+.resumo4 .mini .v span{font-size:12px;font-weight:400;color:var(--t3)}
+/* janela (modal) */
+.mk{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30}
+.md{position:fixed;z-index:31;left:50%;top:50%;transform:translate(-50%,-50%);width:min(480px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:20px;animation:entra .2s var(--ease) both}
+.md .mh{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.md .mh h2{font-size:18px}
+.md .mh .btn{width:44px;padding:0}
+.md .acoes{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.md img.cp{display:block;width:100%;max-height:60dvh;object-fit:contain;border-radius:10px;background:var(--card2);margin-bottom:12px}
+@keyframes entra{from{opacity:0;transform:translate(-50%,-48%)}to{opacity:1;transform:translate(-50%,-50%)}}
+body.travado{overflow:hidden}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--t3) 50%),linear-gradient(135deg,var(--t3) 50%,transparent 50%);background-position:calc(100% - 18px) 19px,calc(100% - 13px) 19px;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
+input[type=date]{color-scheme:dark}
+
 /* celular e telas estreitas */
 @media (max-width:900px){
   .app{grid-template-columns:minmax(0,1fr)}
@@ -222,6 +273,15 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
   .tabbar a.on svg{color:var(--link)}
   .box{padding:16px}
   .bars{height:180px;gap:10px}
+  .brow{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 16px}
+  .brow.hd{display:none}
+  .brow .bnome{grid-column:1}
+  .brow .bval{grid-column:2;grid-row:1;align-self:start}
+  .brow .bven{grid-column:1}
+  .brow .bst{grid-column:2;grid-row:2;justify-self:end}
+  .brow .bact{grid-column:1/-1;justify-content:flex-end}
+  .md{top:auto;bottom:0;left:0;right:0;width:100%;transform:none;border-radius:20px 20px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom));animation:sobeModal .22s var(--ease) both}
+  @keyframes sobeModal{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important}
@@ -229,6 +289,8 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 </style>
 </head>
 <body>
+<div id="modal"></div>
+<input type="file" id="arq" accept="image/*" hidden>
 <div id="root"><div class="center"><div class="sk"><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -287,6 +349,9 @@ const ICON = {
   mais:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   esq:'<path d="M15 6l-6 6 6 6"/>',
   dir:'<path d="M9 6l6 6-6 6"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  close:'<path d="M6 6l12 12M18 6L6 18"/>',
   grafico:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'
 };
 const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
@@ -302,7 +367,8 @@ const SETORES = [
 /* ============ Store ============ */
 const Store = {
   s: { fase:'carregando', user:null, perfil:null, rota:'painel', online:navigator.onLine,
-       painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null } },
+       painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null },
+       boletos:{ lista:null, filtro:'abertos', erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -484,6 +550,192 @@ async function carregarPainel() {
   } finally { painelBusca = null; }
 }
 
+/* ============ boletos ============ */
+// empresas/356/boletos/{id}: descricao, setor (importados|bebidas|cozinha|eventos|geral), vencimento 'AAAA-MM-DD',
+//   valor (número), pago (bool), pagoEm 'AAAA-MM-DD'|null, temComprovante (bool), criadoPorUid, criadoEm
+// empresas/356/comprovantes/{boletoId}: dataUrl (foto comprimida), em, por  (separado para a lista não carregar fotos)
+const SETORES_B = SETORES.concat([{ id:'geral', nome:'Geral' }]);
+const nomeSetor = id => (SETORES_B.find(x => x.id === id) || { nome:'—' }).nome;
+const hojeStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const diasAte = iso => { const [y, m, d] = iso.split('-').map(Number), [a, b, c] = hojeStr().split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(a, b - 1, c)) / 864e5); };
+const dataBR = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
+const dataBRfull = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+const sitBoleto = b => b.pago ? 'pago' : (b.vencimento < hojeStr() ? 'vencido' : 'avencer');
+function quandoTxt(b) {
+  if (b.pago) return b.pagoEm ? 'pago em ' + dataBR(b.pagoEm) : '';
+  const d = diasAte(b.vencimento);
+  return d < 0 ? 'há ' + (-d) + (d === -1 ? ' dia' : ' dias') : d === 0 ? 'hoje' : 'em ' + d + (d === 1 ? ' dia' : ' dias');
+}
+function parseValor(s) {
+  s = String(s || '').replace(/[R$\s]/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (!/^\d+\.\d{1,2}$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+}
+const colBoletos = () => db.collection(`empresas/${EMPRESA}/boletos`);
+async function buscarBoletos() {
+  const corte = mesAdd(hojeStr().slice(0, 7), -3) + '-01';
+  const [a, b] = await Promise.all([colBoletos().where('pago', '==', false).get(), colBoletos().where('vencimento', '>=', corte).get()]);
+  const m = new Map();
+  a.docs.concat(b.docs).forEach(d => m.set(d.id, { id:d.id, ...d.data() }));
+  return Array.from(m.values());
+}
+let boletosBusca = false;
+async function carregarBoletos(forcar) {
+  if (boletosBusca || (Store.s.boletos.lista && !forcar)) return;
+  boletosBusca = true;
+  try { const lista = await buscarBoletos(); Store.set({ boletos:{ ...Store.s.boletos, lista, erro:null } }); }
+  catch (e) { console.error(e); Store.set({ boletos:{ ...Store.s.boletos, lista:Store.s.boletos.lista || [], erro:'Não foi possível carregar os boletos. ' + msgErro(e) } }); }
+  finally { boletosBusca = false; }
+}
+function resumoBoletos(lista) {
+  const mes = hojeStr().slice(0, 7), r = { venc:[], av:[], pg:[], aberto:[] };
+  lista.forEach(b => {
+    const s = sitBoleto(b);
+    if (s === 'vencido') { r.venc.push(b); r.aberto.push(b); }
+    else if (s === 'avencer') { r.av.push(b); r.aberto.push(b); }
+    else if ((b.pagoEm || '').slice(0, 7) === mes) r.pg.push(b);
+  });
+  return r;
+}
+const somaB = a => a.reduce((s, b) => s + (Number(b.valor) || 0), 0);
+const nBol = n => n + (n === 1 ? ' boleto' : ' boletos');
+const badgeSit = s => `<span class="badge ${s === 'pago' ? 'ok' : s === 'vencido' ? 'err' : 'warn'}">${s === 'pago' ? 'Pago' : s === 'vencido' ? 'Vencido' : 'A vencer'}</span>`;
+const vencidosCount = s => s.boletos.lista ? s.boletos.lista.filter(b => sitBoleto(b) === 'vencido').length : 0;
+
+function boletosHTML(s) {
+  const B = s.boletos, f = B.filtro;
+  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Boletos</h1></div>
+    <button class="btn pri" data-act="boletoNovo">+ Novo boleto</button></div>`;
+  const erro = B.erro ? `<div class="alert err on" role="alert">${esc(B.erro)} <button class="btn ghost" data-act="boletosRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (B.lista === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const r = resumoBoletos(B.lista);
+  const card = (id, cor, label, valor, q) => `<button class="rc ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${brl(valor)}</span><span class="q">${q}</span></button>`;
+  const cards = card('vencido', 'var(--err)', 'Vencidos', somaB(r.venc), nBol(r.venc.length))
+    + card('avencer', 'var(--warn)', 'A vencer', somaB(r.av), nBol(r.av.length))
+    + card('pago', 'var(--ok)', 'Pagos no mês', somaB(r.pg), nBol(r.pg.length))
+    + card('abertos', '#b98cff', 'Não pagos', somaB(r.aberto), nBol(r.aberto.length) + ' em aberto');
+  const filtros = [['abertos', 'Não pagos'], ['vencido', 'Vencidos'], ['avencer', 'A vencer'], ['pago', 'Pagos'], ['todos', 'Todos']];
+  const titulos = { abertos:'Não pagos', vencido:'Vencidos', avencer:'A vencer', pago:'Pagos (últimos 3 meses)', todos:'Todos os boletos' };
+  let linhas = B.lista.filter(b => f === 'todos' ? true : f === 'abertos' ? !b.pago : f === 'pago' ? b.pago : sitBoleto(b) === f);
+  linhas = f === 'pago' ? linhas.sort((a, b) => (b.pagoEm || '').localeCompare(a.pagoEm || '')) : linhas.sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  const rows = linhas.map(b => {
+    const st = sitBoleto(b);
+    return `<div class="brow" role="row">
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))}</span></div>
+      <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
+      <div class="bval">${brl(b.valor)}</div>
+      <div class="bst">${badgeSit(st)}</div>
+      <div class="bact">
+        <button class="ib ${b.temComprovante ? 'tem' : ''}" data-act="comprovante" data-id="${esc(b.id)}" aria-label="${b.temComprovante ? 'Ver comprovante' : 'Anexar comprovante'}">${ico('camera')}</button>
+        <button class="ib" data-act="boletoEditar" data-id="${esc(b.id)}" aria-label="Editar boleto">${ico('edit')}</button>
+        <button class="btn ${b.pago ? '' : 'pg'}" data-act="pagar" data-id="${esc(b.id)}">${b.pago ? 'Desfazer' : 'Marcar pago'}</button>
+      </div></div>`;
+  }).join('');
+  return head + erro + `<div class="stack">
+    <section aria-label="Resumo" class="rcards">${cards}</section>
+    <section class="panel" style="margin:0">
+      <div class="ph2"><h3>${titulos[f]}</h3><div class="chips" role="group" aria-label="Filtro">${filtros.map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}">${n}</button>`).join('')}</div></div>
+      <div role="table"><div class="brow hd" role="row"><span>Boleto</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${B.lista.length ? 'Nenhum boleto nesta situação.' : 'Nenhum boleto cadastrado ainda. Use "+ Novo boleto" para o primeiro.'}</div>`}</div>
+    </section></div>`;
+}
+
+function boletosCard(s) {
+  const lista = s.boletos.lista;
+  const cab = `<div class="bh" style="margin-bottom:16px"><h2>Boletos</h2><a href="#/boletos" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>`;
+  if (lista === null) return `<div class="box">${cab}<div class="skel" style="width:60%"></div></div>`;
+  const r = resumoBoletos(lista);
+  const m = (cor, l, a) => `<div class="mini"><div class="l"><span class="dot" style="background:${cor}"></span>${l}</div><div class="v">${a.length} <span>· ${brl(somaB(a))}</span></div></div>`;
+  const prox = r.aberto.slice().sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 3);
+  return `<div class="box">${cab}
+    ${lista.length ? `<div class="resumo4">${m('var(--err)', 'Vencidos', r.venc)}${m('var(--warn)', 'A vencer', r.av)}${m('var(--ok)', 'Pagos no mês', r.pg)}${m('#b98cff', 'Não pagos', r.aberto)}</div>
+      ${prox.map(b => `<div class="prox"><div class="n"><b>${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${dataBR(b.vencimento)} (${esc(quandoTxt(b))})</span></div><div class="r">${brl(b.valor)}${badgeSit(sitBoleto(b))}</div></div>`).join('')}`
+    : `<p class="muted" style="font-size:14px">Vencidos, a vencer e pagos aparecem aqui quando você cadastrar o primeiro boleto.</p><div style="margin-top:12px"><a class="btn" href="#/boletos" style="text-decoration:none">Cadastrar boleto</a></div>`}</div>`;
+}
+
+/* janela (modal) fora do #root: não some quando a tela redesenha */
+function abrirModal(titulo, corpo) {
+  $('#modal').innerHTML = `<div class="mk" data-act="fecharModal"></div><div class="md" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+    <div class="mh"><h2>${esc(titulo)}</h2><button class="btn ghost" data-act="fecharModal" aria-label="Fechar">${ico('close')}</button></div>${corpo}</div>`;
+  document.body.classList.add('travado');
+  const p = $('#modal input,#modal select'); if (p) p.focus();
+}
+function fecharModal() { $('#modal').innerHTML = ''; document.body.classList.remove('travado'); }
+
+function formBoleto(b) {
+  const admin = Store.s.perfil.papel === 'admin';
+  const v = b ? String(b.valor).replace('.', ',') : '';
+  return `<form data-form="boleto" data-id="${b ? esc(b.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
+    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${b ? esc(b.vencimento) : hojeStr()}"></label>
+    <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${b ? 'Salvar alterações' : 'Salvar boleto'}</button>
+    ${b && admin ? `<button type="button" class="btn bad full" data-act="boletoApagar" data-id="${esc(b.id)}">Apagar boleto</button>` : ''}</div></form>`;
+}
+async function salvarBoleto(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), venc = d.vencimento || '';
+  if (!desc) return erro('Escreva o que é o boleto.');
+  if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) return erro('Escolha a data de vencimento.');
+  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  btn.disabled = true;
+  try {
+    const B = Store.s.boletos, id = f.dataset.id;
+    let lista;
+    if (id) {
+      const mud = { descricao:desc, setor:d.setor, vencimento:venc, valor };
+      await colBoletos().doc(id).update(mud);
+      lista = B.lista.map(x => x.id === id ? { ...x, ...mud } : x);
+    } else {
+      const novo = { descricao:desc, setor:d.setor, vencimento:venc, valor, pago:false, pagoEm:null, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const ref = colBoletos().doc();
+      await ref.set(novo);
+      lista = B.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    }
+    fecharModal();
+    Store.set({ boletos:{ ...Store.s.boletos, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+function comprimir(file) {
+  return new Promise((ok, ko) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onerror = () => { URL.revokeObjectURL(url); ko(new Error('Não consegui abrir essa imagem. Use uma foto (JPG ou PNG).')); };
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      let max = 1100, q = .72, out = '';
+      for (let i = 0; i < 6; i++) {
+        const k = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if (out.length < 200000) break;
+        max *= .8; q -= .06;
+      }
+      out.length < 900000 ? ok(out) : ko(new Error('A foto ficou grande demais. Tente tirar de mais perto.'));
+    };
+    im.src = url;
+  });
+}
+let comprovanteAlvo = null;
+async function enviarComprovante(file) {
+  const id = comprovanteAlvo; if (!id || !file) return;
+  const B = Store.s.boletos;
+  try {
+    const dataUrl = await comprimir(file);
+    const b = db.batch();
+    b.set(db.doc(`empresas/${EMPRESA}/comprovantes/${id}`), { dataUrl, em:TS(), por:Store.s.user.uid });
+    b.update(colBoletos().doc(id), { temComprovante:true });
+    await b.commit();
+    Store.set({ boletos:{ ...B, lista:B.lista.map(x => x.id === id ? { ...x, temComprovante:true } : x), erro:null } });
+  } catch (e) { Store.set({ boletos:{ ...B, erro:'Não foi possível salvar o comprovante. ' + msgErro(e) } }); }
+}
+
 /* ============ views ============ */
 const V = {};
 
@@ -563,7 +815,8 @@ V.app = s => {
   let nav = '', g = '';
   rotas.forEach(r => {
     if (r.grp !== g) { g = r.grp; nav += `<div class="grp">${esc(g)}</div>`; }
-    nav += `<a href="#/${r.id}" class="${r.id === atual.id ? 'on' : ''}" ${r.id === atual.id ? 'aria-current="page"' : ''}>${ico(r.ic)}<span>${esc(r.nome)}</span></a>`;
+    const nv = r.id === 'boletos' ? vencidosCount(s) : 0;
+    nav += `<a href="#/${r.id}" class="${r.id === atual.id ? 'on' : ''}" ${r.id === atual.id ? 'aria-current="page"' : ''}>${ico(r.ic)}<span>${esc(r.nome)}</span>${nv ? `<span class="nb" aria-label="${nv} vencidos">${nv}</span>` : ''}</a>`;
   });
   const papel = s.perfil.papel === 'admin' ? 'Admin' : 'Gerente';
   const nomeCurto = (s.perfil.nome || s.user.email).split(/\s+/).slice(0, 2).join(' ');
@@ -677,7 +930,7 @@ function painelHTML(s, nomeCurto) {
           <div class="seg" role="group" aria-label="Métrica"><button data-act="metrica" data-m="vendas" class="${m === 'vendas' ? 'on' : ''}">Vendas</button><button data-act="metrica" data-m="custos" class="${m === 'custos' ? 'on' : ''}">Custos</button></div></div>
         ${grafico}
       </div>
-      ${futuro('Boletos', 'Vencidos, a vencer e pagos aparecem aqui quando você cadastrar o primeiro boleto.')}
+      ${boletosCard(s)}
     </section>
     <section class="three">
       ${futuro('Tarefas de hoje', 'As tarefas de cada setor com prazo para hoje ficam nesta lista.')}
@@ -703,7 +956,7 @@ function page(id, s, nomeCurto) {
   const set = SETORES.find(x => x.id === id);
   if (set) return cab(set.nome, 'Setor da empresa. Visível para Luiz, Eliana e gerente.') +
     vazio(set.id, 'Nada por aqui ainda', 'Estoque, vendas, custos, metas, tarefas e boletos deste setor entram aqui nos próximos blocos.');
-  if (id === 'boletos') return cab('Boletos', 'Vencidos, a vencer, pagos e não pagos.') + vazio('boletos', 'Boletos chegam no próximo bloco', 'Aqui você vai cadastrar cada boleto, marcar como pago e ver o que está vencido.');
+  if (id === 'boletos') return boletosHTML(s);
   if (id === 'freelancers') return cab('Freelancers', 'Lista de presença e valor combinado de cada um.') + vazio('freelancers', 'Lista de presença em construção', 'Aqui você vai cadastrar freelancers e marcar presença por dia.');
   if (id === 'relatorios') return cab('Relatórios', 'Fechamento por setor e relatório geral.') + vazio('relatorios', 'Relatórios em construção', 'Depois que os lançamentos existirem, o fechamento de cada setor e o geral saem daqui em PDF.');
   if (id === 'pessoal') return cab('Pessoal', 'Vida pessoal do casal. <span class="badge ind">Só Luiz e Eliana</span>') +
@@ -754,6 +1007,7 @@ function render() {
     const rotas = rotasDoPerfil(s);
     const id = rotas.some(r => r.id === s.rota) || ROTAS_EXTRAS[s.rota] ? s.rota : 'painel';
     aposPagina(id, s);
+    if (s.boletos.lista === null) carregarBoletos();
   }
   ultimaFase = s.fase;
 }
@@ -789,6 +1043,53 @@ const acoes = {
   },
   metrica(el) { Store.set({ painel:{ ...Store.s.painel, metrica:el.dataset.m } }); },
   recarregarPainel() { Store.set({ painel:{ ...Store.s.painel, dados:null, chave:null, erro:null } }); },
+  boletoNovo() { abrirModal('Novo boleto', formBoleto(null)); },
+  boletoEditar(el) { const b = Store.s.boletos.lista.find(x => x.id === el.dataset.id); if (b) abrirModal('Editar boleto', formBoleto(b)); },
+  fecharModal() { fecharModal(); },
+  filtroBoleto(el) { Store.set({ boletos:{ ...Store.s.boletos, filtro:el.dataset.f } }); },
+  boletosRecarregar() { Store.set({ boletos:{ ...Store.s.boletos, lista:null, erro:null } }); },
+  async pagar(el) {
+    const B = Store.s.boletos, id = el.dataset.id, b = B.lista.find(x => x.id === id); if (!b) return;
+    const pago = !b.pago, mud = { pago, pagoEm: pago ? hojeStr() : null };
+    Store.set({ boletos:{ ...B, erro:null, lista:B.lista.map(x => x.id === id ? { ...x, ...mud } : x) } });
+    try { await colBoletos().doc(id).update(mud); }
+    catch (e) { Store.set({ boletos:{ ...Store.s.boletos, erro:'Não foi possível salvar. O boleto voltou ao estado anterior. ' + msgErro(e), lista:Store.s.boletos.lista.map(x => x.id === id ? b : x) } }); }
+  },
+  async comprovante(el) {
+    const id = el.dataset.id, b = Store.s.boletos.lista.find(x => x.id === id); if (!b) return;
+    comprovanteAlvo = id;
+    if (!b.temComprovante) { $('#arq').value = ''; $('#arq').click(); return; }
+    const admin = Store.s.perfil.papel === 'admin';
+    abrirModal('Comprovante', `<div id="cpBox"><div class="skel" style="width:50%"></div></div>
+      <div class="acoes"><button class="btn full" data-act="cpTrocar">Trocar foto</button>${admin ? `<button class="btn bad full" data-act="cpRemover" data-id="${esc(id)}">Remover comprovante</button>` : ''}</div>`);
+    try {
+      const sn = await db.doc(`empresas/${EMPRESA}/comprovantes/${id}`).get();
+      const box = $('#cpBox'); if (!box) return;
+      if (!sn.exists) { box.innerHTML = '<p class="muted" style="font-size:14px">Comprovante não encontrado.</p>'; return; }
+      const im = document.createElement('img'); im.className = 'cp'; im.alt = 'Comprovante do boleto ' + b.descricao; im.src = sn.data().dataUrl;
+      box.innerHTML = ''; box.appendChild(im);
+    } catch (e) { const box = $('#cpBox'); if (box) box.innerHTML = `<div class="alert err on">${esc(msgErro(e))}</div>`; }
+  },
+  cpTrocar() { fecharModal(); $('#arq').value = ''; $('#arq').click(); },
+  async cpRemover(el) {
+    const id = el.dataset.id, B = Store.s.boletos;
+    try {
+      const b = db.batch(); b.delete(db.doc(`empresas/${EMPRESA}/comprovantes/${id}`)); b.update(colBoletos().doc(id), { temComprovante:false }); await b.commit();
+      fecharModal(); Store.set({ boletos:{ ...B, lista:B.lista.map(x => x.id === id ? { ...x, temComprovante:false } : x) } });
+    } catch (e) { fecharModal(); Store.set({ boletos:{ ...B, erro:'Não foi possível remover. ' + msgErro(e) } }); }
+  },
+  boletoApagar(el) {
+    const b = Store.s.boletos.lista.find(x => x.id === el.dataset.id); if (!b) return;
+    abrirModal('Apagar boleto', `<p style="font-size:14px;margin-bottom:16px">Apagar <b style="color:var(--t1)">${esc(b.descricao)}</b> (${brl(b.valor)})? Isso não dá para desfazer.</p>
+      <div class="acoes"><button class="btn bad full" data-act="boletoApagarOk" data-id="${esc(b.id)}">Apagar boleto</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async boletoApagarOk(el) {
+    const id = el.dataset.id, B = Store.s.boletos;
+    try {
+      const b = db.batch(); b.delete(colBoletos().doc(id)); b.delete(db.doc(`empresas/${EMPRESA}/comprovantes/${id}`)); await b.commit();
+      fecharModal(); Store.set({ boletos:{ ...B, lista:B.lista.filter(x => x.id !== id), erro:null } });
+    } catch (e) { fecharModal(); Store.set({ boletos:{ ...B, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
   async reenviar() {
     try { await auth.currentUser.sendEmailVerification(); aviso('E-mail reenviado. Pode demorar um minuto.', 'ok'); }
     catch (e) { aviso(msgErro(e)); }
@@ -842,12 +1143,16 @@ document.addEventListener('submit', async e => {
   const f = e.target.closest('form[data-form]'); if (!f) return;
   e.preventDefault();
   const d = Object.fromEntries(new FormData(f).entries());
+  if (f.dataset.form === 'boleto') { await salvarBoleto(f, d); return; }
   const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
   try {
     if (f.dataset.form === 'entrar') await entrar(d.email || '', d.senha || '');
     else await criarConta({ nome:d.nome || '', email:d.email || '', senha:d.senha || '', convite:d.convite || '' });
   } catch (err) { aviso(msgErro(err)); btn.disabled = false; }
 });
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal .md')) fecharModal(); });
+document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
 
 /* ============ service worker (offline do "esqueleto") ============ */
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
