@@ -390,6 +390,7 @@ const ICON = {
   diag:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
   sair:'<path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9"/>',
   mais:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  energia:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   esq:'<path d="M15 6l-6 6 6 6"/>',
   dir:'<path d="M9 6l6 6-6 6"/>',
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -414,7 +415,8 @@ const Store = {
        boletos:{ lista:null, filtro:'abertos', erro:null },
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
-       estoque:{ lista:null, erro:null } },
+       estoque:{ lista:null, erro:null },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -972,11 +974,12 @@ const fmtQtd = n => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDi
 function setorHTML(s, set) {
   const L = s.lanc, E = s.estoque, tab = L.tab;
   const head = `<div class="ph"><div><div class="ctx">Setor da empresa · visível para Luiz, Eliana e gerente</div><h1>${esc(set.nome)}</h1></div>
-    <button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : 'lancNovo'}" data-setor="${set.id}">${tab === 'estoque' ? '+ Novo produto' : '+ Novo lançamento'}</button></div>`;
-  const tabs = `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button></div>
+    <button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${set.id}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div>`;
+  const tabs = `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
     ${tab === 'lanc' ? `<div class="mes" role="group" aria-label="Mês"><button data-act="lmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(L.mes, false))}</span><button data-act="lmes" data-d="1" aria-label="Próximo mês" ${L.mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>` : ''}</div>`;
   const sk = `<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div>`;
   const cardE = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  if (tab === 'tarefas') return tarefasHTML(set, head, tabs, Store.s.tar.erro ? `<div class="alert err on" role="alert">${esc(Store.s.tar.erro)} <button class="btn ghost" data-act="tarRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '');
   if (tab === 'estoque') {
     const erro = E.erro ? `<div class="alert err on" role="alert">${esc(E.erro)} <button class="btn ghost" data-act="estRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
     if (E.lista === null) return head + `<div class="stack">${tabs}${sk}</div>`;
@@ -1008,7 +1011,7 @@ function setorHTML(s, set) {
       <div class="bven">${dataBR(x.data)}</div><div class="bval">${brl(x.valor)}</div><div class="bst">${badgeTipo(x.tipo)}</div>
       <div class="bact"><button class="ib ${x.temComprovante ? 'tem' : ''}" data-act="lcComprovante" data-id="${esc(x.id)}" aria-label="${x.temComprovante ? 'Ver foto da nota' : 'Anexar foto da nota'}">${ico('camera')}</button>
         <button class="ib" data-act="lancEditar" data-id="${esc(x.id)}" aria-label="Editar lançamento">${ico('edit')}</button></div></div>`).join('');
-  return head + erro + `<div class="stack">${tabs}${cards}
+  return head + erro + `<div class="stack">${tabs}${metaCard(set, L.mes, v)}${cards}
     <section class="panel" style="margin:0"><div class="ph2"><h3>Lançamentos de ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div><div role="table">
       <div class="brow hd" role="row"><span>Lançamento</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum lançamento deste setor em ${esc(mesNome(L.mes, true).toLowerCase())}. Use "+ Novo lançamento".</div>`}</div></section></div>`;
@@ -1096,6 +1099,197 @@ async function salvarProd(f, d) {
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 
+/* ============ metas, tarefas e energia ============ */
+// empresas/356/metas/{setor_AAAA-MM}: vendas (meta de vendas do mês, número; 0 = sem meta)
+// empresas/356/tarefas/{id}: titulo, setor, responsavel (texto), prazo ('AAAA-MM-DD' ou ''), feita (bool), feitaEm, criadoPorUid, criadoEm
+// empresas/356/energia/{AAAA-MM}: kWh, valorUsina, valorDistribuidora (economia = distribuidora − usina)
+const colTar = () => db.collection(`empresas/${EMPRESA}/tarefas`);
+let metasBusca = false;
+async function carregarMetas() {
+  if (metasBusca || Store.s.metas.mapa) return;
+  metasBusca = true;
+  try {
+    const q = await db.collection(`empresas/${EMPRESA}/metas`).get(), mapa = {};
+    q.docs.forEach(d => { mapa[d.id] = Number(d.data().vendas) || 0; });
+    Store.set({ metas:{ mapa, erro:null } });
+  } catch (e) { console.error(e); Store.set({ metas:{ mapa:{}, erro:'Não foi possível carregar as metas. ' + msgErro(e) } }); }
+  finally { metasBusca = false; }
+}
+function metaCard(set, mes, vendas) {
+  const M = Store.s.metas, meta = (M.mapa || {})[set.id + '_' + mes] || 0;
+  const mesTxt = mesNome(mes, true).toLowerCase();
+  if (!M.mapa) return `<div class="box"><div class="skel" style="width:40%"></div></div>`;
+  const btn = `<button class="btn" data-act="metaEditar" data-setor="${set.id}" data-mes="${mes}" style="height:44px">${meta > 0 ? 'Editar meta' : 'Definir meta'}</button>`;
+  if (!(meta > 0)) return `<div class="box"><div class="bh" style="margin:0"><div><h2>Meta de vendas</h2><p class="muted" style="font-size:13px;margin-top:4px">Sem meta definida para ${esc(mesTxt)}. Defina quanto este setor quer vender no mês.</p></div>${btn}</div></div>`;
+  const prog = Math.min(100, Math.round(vendas / meta * 100)), falta = meta - vendas;
+  return `<div class="box"><div class="bh"><h2>Meta de vendas · ${esc(mesTxt)}</h2>${btn}</div>
+    <div class="meta"><div class="r"><span>${brl(vendas)} de ${brl(meta)}</span><b>${prog}%</b></div>
+    <div class="trk" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prog}" aria-label="Meta de ${esc(set.nome)}"><div style="width:${prog}%"></div></div>
+    <div class="r"><span>${falta > 0 ? 'Faltam ' + brl(falta) + ' para a meta' : 'Meta batida'}</span><span>${falta > 0 ? '' : 'Passou ' + brl(-falta)}</span></div></div></div>`;
+}
+function formMeta(set, mes, atual) {
+  return `<form data-form="meta" data-setor="${set.id}" data-mes="${mes}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Meta de vendas de ${esc(set.nome)} em ${esc(mesNome(mes, true).toLowerCase())} (R$)</span><input name="valor" inputmode="decimal" value="${atual > 0 ? esc(String(atual).replace('.', ',')) : ''}" placeholder="20.000,00" autocomplete="off"></label>
+    <p class="muted" style="font-size:12px;margin-bottom:12px">Digite 0 para tirar a meta deste mês.</p>
+    <div class="acoes"><button class="btn pri full" type="submit">Salvar meta</button></div></form>`;
+}
+async function salvarMeta(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const raw = String(d.valor || '').trim(), v = raw === '' ? NaN : parseValor(raw);
+  if (!(v >= 0)) return erro('Digite o valor da meta. Exemplo: 20.000,00 (ou 0 para tirar a meta).');
+  btn.disabled = true;
+  try {
+    const id = f.dataset.setor + '_' + f.dataset.mes;
+    await db.doc(`empresas/${EMPRESA}/metas/${id}`).set({ vendas:v, atualizadoPorUid:Store.s.user.uid, atualizadoEm:TS() }, { merge:true });
+    invalidarPainel(); fecharModal();
+    Store.set({ metas:{ mapa:{ ...(Store.s.metas.mapa || {}), [id]:v }, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+
+let tarBusca = false;
+async function carregarTar() {
+  if (tarBusca || Store.s.tar.lista) return;
+  tarBusca = true;
+  try {
+    const q = await colTar().get();
+    Store.set({ tar:{ ...Store.s.tar, lista:q.docs.map(d => ({ id:d.id, ...d.data() })), erro:null } });
+  } catch (e) { console.error(e); Store.set({ tar:{ ...Store.s.tar, lista:[], erro:'Não foi possível carregar as tarefas. ' + msgErro(e) } }); }
+  finally { tarBusca = false; }
+}
+function sitTarefa(x) { if (x.feita) return 'feita'; if (!x.prazo) return 'sem'; const h = hojeStr(); return x.prazo < h ? 'atrasada' : x.prazo === h ? 'hoje' : 'ok'; }
+const ordTarefa = (a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999') || (a.titulo || '').localeCompare(b.titulo || '');
+const badgeTar = st => ({ atrasada:'<span class="badge err">Atrasada</span>', hoje:'<span class="badge warn">Hoje</span>', ok:'<span class="badge">Em dia</span>', sem:'<span class="badge">Sem prazo</span>', feita:'<span class="badge ok">Feita</span>' }[st]);
+function tarefasHTML(set, head, tabs, erroHtml) {
+  const T = Store.s.tar, f = T.filtro;
+  if (T.lista === null) return head + `<div class="stack">${tabs}<div class="skbox" style="height:160px"></div></div>`;
+  const todas = T.lista.filter(x => x.setor === set.id);
+  const abertas = todas.filter(x => !x.feita), feitas = todas.filter(x => x.feita);
+  const atras = abertas.filter(x => sitTarefa(x) === 'atrasada').length, hoje = abertas.filter(x => sitTarefa(x) === 'hoje').length;
+  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  const cards = `<div class="rcards">${card('#b98cff', 'Abertas', abertas.length, 'a fazer neste setor')}${card('var(--err)', 'Atrasadas', atras, 'prazo já passou')}${card('var(--warn)', 'Para hoje', hoje, 'vencem hoje')}${card('var(--ok)', 'Feitas', feitas.length, 'concluídas')}</div>`;
+  const lista = (f === 'abertas' ? abertas.slice().sort(ordTarefa) : f === 'feitas' ? feitas.slice().sort((a, b) => (b.feitaEm || '').localeCompare(a.feitaEm || '')) : todas.slice().sort((a, b) => (a.feita - b.feita) || ordTarefa(a, b)));
+  const rows = lista.map(x => {
+    const st = sitTarefa(x);
+    return `<div class="brow" role="row">
+      <div class="bnome"><b title="${esc(x.titulo)}" style="${x.feita ? 'text-decoration:line-through;color:var(--t3)' : ''}">${esc(x.titulo)}</b><span>${esc(x.responsavel ? 'Responsável: ' + x.responsavel : 'Sem responsável')}</span></div>
+      <div class="bven">${x.prazo ? dataBR(x.prazo) : '—'}</div><div class="bval"></div><div class="bst">${badgeTar(st)}</div>
+      <div class="bact"><button class="btn ${x.feita ? '' : 'pg'}" data-act="tarFeita" data-id="${esc(x.id)}" style="height:44px">${x.feita ? 'Reabrir' : 'Concluir'}</button>
+        <button class="ib" data-act="tarEditar" data-id="${esc(x.id)}" aria-label="Editar tarefa">${ico('edit')}</button></div></div>`;
+  }).join('');
+  const chips = [['abertas', 'Abertas'], ['feitas', 'Feitas'], ['todas', 'Todas']].map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="tarFiltro" data-f="${id}">${n}</button>`).join('');
+  const vazio = f === 'feitas' ? 'Nenhuma tarefa concluída ainda.' : 'Nenhuma tarefa aberta neste setor. Use "+ Nova tarefa".';
+  return head + erroHtml + `<div class="stack">${tabs}${cards}
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Tarefas</h3><div class="chips" role="group" aria-label="Filtro">${chips}</div></div><div role="table">
+      <div class="brow hd" role="row"><span>Tarefa</span><span>Prazo</span><span></span><span>Situação</span><span></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazio}</div>`}</div></section></div>`;
+}
+function formTar(x, setorPadrao) {
+  const setor = x ? x.setor : (setorPadrao || SETORES[0].id);
+  return `<form data-form="tarefa" data-id="${x ? esc(x.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Tarefa</span><input name="titulo" value="${x ? esc(x.titulo) : ''}" maxlength="120" placeholder="Ex.: Conferir validade dos importados" autocomplete="off"></label>
+    <label class="f"><span>Setor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Responsável (opcional)</span><input name="responsavel" value="${x ? esc(x.responsavel || '') : ''}" maxlength="60" placeholder="Ex.: Lucas" autocomplete="off"></label>
+    <label class="f"><span>Prazo (opcional)</span><input name="prazo" type="date" value="${x ? esc(x.prazo || '') : ''}"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar tarefa'}</button>
+    ${x && Store.s.perfil.papel === 'admin' ? `<button type="button" class="btn bad full" data-act="tarApagar" data-id="${esc(x.id)}">Apagar tarefa</button>` : ''}</div></form>`;
+}
+async function salvarTar(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const titulo = (d.titulo || '').trim(), prazo = d.prazo || '';
+  if (!titulo) return erro('Escreva o que precisa ser feito.');
+  if (!SETORES.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (prazo && !/^\d{4}-\d{2}-\d{2}$/.test(prazo)) return erro('Prazo inválido. Escolha a data de novo ou deixe em branco.');
+  btn.disabled = true;
+  try {
+    const T = Store.s.tar, id = f.dataset.id, mud = { titulo, setor:d.setor, responsavel:(d.responsavel || '').trim(), prazo };
+    let lista;
+    if (id) { await colTar().doc(id).update(mud); lista = T.lista.map(x => x.id === id ? { ...x, ...mud } : x); }
+    else { const novo = { ...mud, feita:false, feitaEm:null, criadoPorUid:Store.s.user.uid, criadoEm:TS() }, ref = colTar().doc(); await ref.set(novo); lista = T.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]); }
+    fecharModal(); Store.set({ tar:{ ...T, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+function tarefasCard(s) {
+  const T = s.tar, hoje = hojeStr();
+  const cab = `<div class="bh" style="margin-bottom:16px"><h2>Tarefas de hoje</h2></div>`;
+  if (T.lista === null) return `<div class="box">${cab}<div class="skel" style="width:60%"></div></div>`;
+  const ab = T.lista.filter(x => !x.feita && x.prazo && x.prazo <= hoje).sort(ordTarefa);
+  if (!ab.length) return `<div class="box vazio-mini">${cab}<p>${T.lista.some(x => !x.feita) ? 'Nada vence hoje nem está atrasado.' : 'Nenhuma tarefa aberta. Cadastre pela aba Tarefas de cada setor.'}</p></div>`;
+  return `<div class="box">${cab}<p class="muted" style="font-size:12px;margin-bottom:8px">${ab.length} ${ab.length === 1 ? 'tarefa' : 'tarefas'} para hoje ou atrasada${ab.length === 1 ? '' : 's'}</p>
+    ${ab.slice(0, 4).map(x => `<a class="prox" href="#/${esc(x.setor)}" style="text-decoration:none"><div class="n"><b>${esc(x.titulo)}</b><span>${esc(nomeSetor4(x.setor))}${x.responsavel ? ' · ' + esc(x.responsavel) : ''}</span></div><div class="r">${badgeTar(sitTarefa(x))}</div></a>`).join('')}
+    ${ab.length > 4 ? `<p class="muted" style="font-size:12px;margin-top:10px">+ ${ab.length - 4} nos setores.</p>` : ''}</div>`;
+}
+
+let enBusca = false;
+async function carregarEnergia() {
+  if (enBusca || Store.s.energia.lista) return;
+  enBusca = true;
+  try {
+    const q = await db.collection(`empresas/${EMPRESA}/energia`).get();
+    const lista = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => b.id.localeCompare(a.id));
+    Store.set({ energia:{ ...Store.s.energia, lista, erro:null } });
+  } catch (e) { console.error(e); Store.set({ energia:{ ...Store.s.energia, lista:[], erro:'Não foi possível carregar os dados de energia. ' + msgErro(e) } }); }
+  finally { enBusca = false; }
+}
+const ecoEn = x => (Number(x.valorDistribuidora) || 0) - (Number(x.valorUsina) || 0);
+const ecoPctEn = x => (Number(x.valorDistribuidora) > 0 ? ecoEn(x) / Number(x.valorDistribuidora) : 0);
+function energiaHTML(s) {
+  const E = s.energia, mes = E.mes;
+  const head = `<div class="ph"><div><div class="ctx">Créditos da usina solar contra a conta da distribuidora</div><h1>Energia solar</h1></div>
+    <button class="btn pri" data-act="energiaNovo">+ Registrar mês</button></div>`;
+  const erro = E.erro ? `<div class="alert err on" role="alert">${esc(E.erro)} <button class="btn ghost" data-act="energiaRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (E.lista === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const cur = E.lista.find(x => x.id === mes), ano = mes.slice(0, 4);
+  const doAno = E.lista.filter(x => x.id.startsWith(ano)), ecoAno = doAno.reduce((a, x) => a + ecoEn(x), 0);
+  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  const cards = cur
+    ? `<div class="rcards">${card('var(--warn)', 'Créditos da usina', (Number(cur.kWh) || 0).toLocaleString('pt-BR') + ' kWh', 'no mês')}${card('#b98cff', 'Pago à usina', brl(cur.valorUsina), 'valor da fatura da usina')}${card('var(--err)', 'Pela distribuidora', brl(cur.valorDistribuidora), 'quanto sairia sem a usina')}${card('var(--ok)', 'Economia do mês', brl(ecoEn(cur)), pct(ecoPctEn(cur)) + ' a menos')}</div>`
+    : `<div class="box vazio-mini"><p>Nenhum dado de energia em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Registrar mês" para lançar os kWh e os dois valores.</p></div>`;
+  const nav = `<div class="tabs2"><div class="mes" role="group" aria-label="Mês"><button data-act="emes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="emes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>
+    <span class="muted" style="font-size:13px">Economia em ${esc(ano)}: <b style="color:var(--ok)">${brl(ecoAno)}</b> em ${doAno.length} ${doAno.length === 1 ? 'mês' : 'meses'}</span></div>`;
+  const rows = E.lista.map(x => `<div class="mrow" role="row">
+      <div class="fnome"><b>${esc(mesNome(x.id, true))}</b><span>${(Number(x.kWh) || 0).toLocaleString('pt-BR')} kWh</span></div>
+      <div class="mc" data-l="kWh">${(Number(x.kWh) || 0).toLocaleString('pt-BR')}</div><div class="mc" data-l="Usina">${brl(x.valorUsina)}</div><div class="mc" data-l="Distribuidora">${brl(x.valorDistribuidora)}</div>
+      <div class="mc" data-l="Economia" style="color:${ecoEn(x) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(x))}</div><div class="mc" data-l="%">${pct(ecoPctEn(x))}</div>
+      <div class="fact"><button class="ib" data-act="energiaEditar" data-id="${esc(x.id)}" aria-label="Editar ${esc(mesNome(x.id, true))}">${ico('edit')}</button></div></div>`).join('');
+  return head + erro + `<div class="stack">${nav}${cards}
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Histórico</h3></div><div role="table">
+      <div class="mrow hd" role="row"><span>Mês</span><span style="text-align:right">kWh</span><span style="text-align:right">Usina</span><span style="text-align:right">Distribuidora</span><span style="text-align:right">Economia</span><span style="text-align:right">%</span><span></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Nenhum mês registrado ainda.</div>`}</div></section></div>`;
+}
+function formEnergia(x, mes) {
+  const n = v => v === undefined || v === null ? '' : esc(String(v).replace('.', ','));
+  return `<form data-form="energia" data-id="${x ? esc(x.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Mês</span><input name="mes" type="month" value="${esc(x ? x.id : mes)}" max="${mesAtual()}" ${x ? 'disabled' : ''}></label>
+    <label class="f"><span>Créditos recebidos da usina (kWh)</span><input name="kWh" inputmode="decimal" value="${x ? n(x.kWh) : ''}" placeholder="1.850" autocomplete="off"></label>
+    <label class="f"><span>Valor pago à usina (R$)</span><input name="valorUsina" inputmode="decimal" value="${x ? n(x.valorUsina) : ''}" placeholder="1.100,00" autocomplete="off"></label>
+    <label class="f"><span>Quanto a distribuidora cobraria pelos mesmos kWh (R$)</span><input name="valorDistribuidora" inputmode="decimal" value="${x ? n(x.valorDistribuidora) : ''}" placeholder="1.650,00" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar mês'}</button>
+    ${x && Store.s.perfil.papel === 'admin' ? `<button type="button" class="btn bad full" data-act="energiaApagar" data-id="${esc(x.id)}">Apagar mês</button>` : ''}</div></form>`;
+}
+async function salvarEnergia(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const id = f.dataset.id || d.mes || f.querySelector('[name=mes]').value;
+  const kWh = parseValor(d.kWh), vu = parseValor(d.valorUsina), vd = parseValor(d.valorDistribuidora);
+  if (!/^\d{4}-\d{2}$/.test(id)) return erro('Escolha o mês.');
+  if (id > mesAtual()) return erro('O mês não pode ser no futuro.');
+  if (!(kWh > 0)) return erro('Digite os kWh recebidos, maior que zero. Exemplo: 1.850');
+  if (!(vu >= 0)) return erro('Digite o valor pago à usina. Exemplo: 1.100,00');
+  if (!(vd > 0)) return erro('Digite quanto a distribuidora cobraria, maior que zero. Exemplo: 1.650,00');
+  btn.disabled = true;
+  try {
+    const E = Store.s.energia, mud = { kWh, valorUsina:vu, valorDistribuidora:vd, atualizadoPorUid:Store.s.user.uid };
+    await db.doc(`empresas/${EMPRESA}/energia/${id}`).set(mud, { merge:true });
+    const lista = E.lista.filter(x => x.id !== id).concat([{ ...(E.lista.find(x => x.id === id) || {}), ...mud, id }]).sort((a, b) => b.id.localeCompare(a.id));
+    invalidarPainel(); fecharModal(); Store.set({ energia:{ ...E, mes:id, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+
 /* ============ views ============ */
 const V = {};
 
@@ -1159,6 +1353,7 @@ function rotasDoPerfil(s) {
   SETORES.forEach(x => r.push({ id:x.id, nome:x.nome, ic:x.id, grp:'Empresa' }));
   r.push({ id:'boletos', nome:'Boletos', ic:'boletos', grp:'Controle' });
   r.push({ id:'freelancers', nome:'Freelancers', ic:'freelancers', grp:'Controle' });
+  r.push({ id:'energia', nome:'Energia solar', ic:'energia', grp:'Controle' });
   r.push({ id:'relatorios', nome:'Relatórios', ic:'relatorios', grp:'Controle' });
   if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Casal' });
   if (eAdminEmp) r.push({ id:'equipe', nome:'Equipe', ic:'equipe', grp:'Gestão' });
@@ -1186,7 +1381,7 @@ V.app = s => {
     + tab('setores', 'Setores', 'importados', ehSetor || atual.id === 'setores')
     + tab('boletos', 'Boletos', 'boletos', atual.id === 'boletos')
     + tab('freelancers', 'Presença', 'freelancers', atual.id === 'freelancers')
-    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['relatorios','pessoal','equipe','diag'].includes(atual.id));
+    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','pessoal','equipe','diag'].includes(atual.id));
   return `
 <div class="app">
   <aside class="side">
@@ -1295,9 +1490,9 @@ function painelHTML(s, nomeCurto) {
       ${boletosCard(s)}
     </section>
     <section class="three">
-      ${futuro('Tarefas de hoje', 'As tarefas de cada setor com prazo para hoje ficam nesta lista.')}
+      ${tarefasCard(s)}
       ${freelancersCard(s)}
-      <div class="box vazio-mini"><h2>Energia solar</h2>${en
+      <div class="box vazio-mini"><div class="bh" style="margin:0"><h2>Energia solar</h2><a href="#/energia" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>${en
         ? `<div><span class="big">${(Number(en.kWh) || 0).toLocaleString('pt-BR')} kWh</span> <span class="muted" style="font-size:13px">créditos da usina no mês</span></div>
            <p>Pela distribuidora sairia <b style="color:var(--t1)">${brl(en.valorDistribuidora)}</b>. Pela usina: <b style="color:var(--t1)">${brl(en.valorUsina)}</b>.</p>
            <div class="eco">Economia de ${brl(eco)} (${pct(ecoPct)})</div>`
@@ -1311,13 +1506,14 @@ function page(id, s, nomeCurto) {
   if (id === 'setores') return cab('Setores', 'Os quatro setores da 356.') + `<div class="sets">${SETORES.map(x => `
     <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
   if (id === 'mais') {
-    const rotas = rotasDoPerfil(s).filter(r => ['relatorios','pessoal','equipe','diag'].includes(r.id));
+    const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','pessoal','equipe','diag'].includes(r.id));
     return cab('Mais') + `<div class="box"><div class="lista">${rotas.map(r => `<a href="#/${r.id}">${ico(r.ic)}${esc(r.nome)}</a>`).join('')}
       <a href="#/mais" data-act="sair">${ico('sair')}Sair</a></div></div>`;
   }
   const set = SETORES.find(x => x.id === id);
   if (set) return setorHTML(s, set);
   if (id === 'boletos') return boletosHTML(s);
+  if (id === 'energia') return energiaHTML(s);
   if (id === 'freelancers') return freelancersHTML(s);
   if (id === 'relatorios') return cab('Relatórios', 'Fechamento por setor e relatório geral.') + vazio('relatorios', 'Relatórios em construção', 'Depois que os lançamentos existirem, o fechamento de cada setor e o geral saem daqui em PDF.');
   if (id === 'pessoal') return cab('Pessoal', 'Vida pessoal do casal. <span class="badge ind">Só Luiz e Eliana</span>') +
@@ -1336,7 +1532,8 @@ function page(id, s, nomeCurto) {
 /* após desenhar uma página, carrega o que ela precisa */
 async function aposPagina(id, s) {
   if (id === 'painel') { carregarPainel(); return; }
-  if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); return; }
+  if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
+  if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'equipe') {
     const box = $('#equipeLista'); if (!box) return;
     try {
@@ -1371,6 +1568,7 @@ function render() {
     aposPagina(id, s);
     if (s.boletos.lista === null) carregarBoletos();
     if (s.free.lista === null) carregarFree();
+    if (s.tar.lista === null) carregarTar();
   }
   ultimaFase = s.fase;
 }
@@ -1555,6 +1753,42 @@ const acoes = {
     try { await colProd().doc(id).delete(); fecharModal(); Store.set({ estoque:{ lista:E.lista.filter(x => x.id !== id), erro:null } }); }
     catch (e) { fecharModal(); Store.set({ estoque:{ ...E, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
+  metaEditar(el) { const set = SETORES.find(x => x.id === el.dataset.setor); if (!set) return; abrirModal('Meta de vendas', formMeta(set, el.dataset.mes, (Store.s.metas.mapa || {})[set.id + '_' + el.dataset.mes] || 0)); },
+  tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor)); },
+  tarEditar(el) { const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (x) abrirModal('Editar tarefa', formTar(x)); },
+  tarFiltro(el) { Store.set({ tar:{ ...Store.s.tar, filtro:el.dataset.f } }); },
+  tarRecarregar() { Store.set({ tar:{ lista:null, erro:null, filtro:Store.s.tar.filtro } }); },
+  async tarFeita(el) {
+    const T = Store.s.tar, id = el.dataset.id, ant = T.lista.find(x => x.id === id); if (!ant) return;
+    const mud = { feita:!ant.feita, feitaEm: ant.feita ? null : hojeStr() };
+    Store.set({ tar:{ ...T, erro:null, lista:T.lista.map(x => x.id === id ? { ...x, ...mud } : x) } });
+    try { await colTar().doc(id).update(mud); }
+    catch (e) { const G = Store.s.tar; Store.set({ tar:{ ...G, erro:'Não foi possível salvar a tarefa. Voltou ao estado anterior. ' + msgErro(e), lista:G.lista.map(x => x.id === id ? ant : x) } }); }
+  },
+  tarApagar(el) {
+    const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (!x) return;
+    abrirModal('Apagar tarefa', `<p style="font-size:14px;margin-bottom:16px">Apagar a tarefa <b style="color:var(--t1)">${esc(x.titulo)}</b>? Isso não dá para desfazer.</p>
+      <div class="acoes"><button class="btn bad full" data-act="tarApagarOk" data-id="${esc(x.id)}">Apagar tarefa</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async tarApagarOk(el) {
+    const id = el.dataset.id, T = Store.s.tar;
+    try { await colTar().doc(id).delete(); fecharModal(); Store.set({ tar:{ ...T, lista:T.lista.filter(x => x.id !== id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ tar:{ ...T, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
+  energiaNovo() { abrirModal('Registrar mês de energia', formEnergia(null, Store.s.energia.mes)); },
+  energiaEditar(el) { const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (x) abrirModal('Editar energia de ' + mesNome(x.id, true).toLowerCase(), formEnergia(x)); },
+  emes(el) { const E = Store.s.energia, novo = mesAdd(E.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ energia:{ ...E, mes:novo } }); },
+  energiaRecarregar() { Store.set({ energia:{ lista:null, mes:Store.s.energia.mes, erro:null } }); },
+  energiaApagar(el) {
+    const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (!x) return;
+    abrirModal('Apagar mês de energia', `<p style="font-size:14px;margin-bottom:16px">Apagar os dados de energia de <b style="color:var(--t1)">${esc(mesNome(x.id, true).toLowerCase())}</b>? Isso não dá para desfazer.</p>
+      <div class="acoes"><button class="btn bad full" data-act="energiaApagarOk" data-id="${esc(x.id)}">Apagar mês</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async energiaApagarOk(el) {
+    const id = el.dataset.id, E = Store.s.energia;
+    try { await db.doc(`empresas/${EMPRESA}/energia/${id}`).delete(); invalidarPainel(); fecharModal(); Store.set({ energia:{ ...E, lista:E.lista.filter(x => x.id !== id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ energia:{ ...E, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
   async reenviar() {
     try { await auth.currentUser.sendEmailVerification(); aviso('E-mail reenviado. Pode demorar um minuto.', 'ok'); }
     catch (e) { aviso(msgErro(e)); }
@@ -1612,6 +1846,9 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'freelancer') { await salvarFree(f, d); return; }
   if (f.dataset.form === 'lancamento') { await salvarLanc(f, d); return; }
   if (f.dataset.form === 'produto') { await salvarProd(f, d); return; }
+  if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
+  if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
+  if (f.dataset.form === 'energia') { await salvarEnergia(f, d); return; }
   const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
   try {
     if (f.dataset.form === 'entrar') await entrar(d.email || '', d.senha || '');
