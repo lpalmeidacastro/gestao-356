@@ -1007,13 +1007,21 @@ async function fornResolve(d) {
   const f = d.fornecedorId === '__novo' ? await criarFornecedor((d.novoFornecedor || '').trim()) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
   return { fornecedorId:f.id, fornecedorNome:f.nome };
 }
-const fornTxt = x => x && x.fornecedorNome ? ' · ' + esc(x.fornecedorNome) : '';
+const fornTxt = x => x && x.fornecedorNome && x.descricao !== x.fornecedorNome ? ' · ' + esc(x.fornecedorNome) : '';
+const jurosCampo = (v, cls) => `<label class="f ${cls || ''}" data-juros><span>Juros pagos, se houver (R$) <span class="muted" style="font-weight:400">· já dentro do valor</span></span><input name="juros" inputmode="decimal" value="${Number(v) > 0 ? esc(String(v).replace('.', ',')) : ''}" placeholder="0,00" autocomplete="off"></label>`;
+function lerJuros(d, valor) {
+  const t = String(d.juros || '').trim(); if (!t) return { j:0 };
+  const j = parseValor(t);
+  if (!(j >= 0)) return { erro:'Juros inválidos. Exemplo: 12,50 (ou deixe vazio).' };
+  if (valor != null && j > valor) return { erro:'Os juros não podem ser maiores que o valor.' };
+  return { j };
+}
 function formConta(c) {
   const admin = Store.s.perfil.papel === 'admin', rec = c ? !!c.recorrente : true;
   const v = c ? String(c.valor).replace('.', ',') : '';
   return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
-    <label class="f"><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
+    <label class="f ${c && c.setor === ID_FORN ? 'hide' : ''}" data-desc><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
     ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>${fornCampo(c ? c.setor : 'geral', c && c.fornecedorId)}`}
     <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
     <div data-so="rec" ${rec ? '' : 'class="hide"'}>
@@ -1031,8 +1039,8 @@ function formConta(c) {
 async function salvarConta(f, d) {
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
-  const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), rec = d.tipo !== 'uma';
-  if (!desc) return erro('Escreva que conta é.');
+  let desc = (d.descricao || '').trim(); const valor = parseValor(d.valor), rec = d.tipo !== 'uma';
+  if (!desc && (ehPes() || d.setor !== ID_FORN)) return erro('Escreva que conta é.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
   if (!ehPes() && !setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
   const ef = ehPes() ? '' : fornValida(d); if (ef) return erro(ef);
@@ -1050,6 +1058,7 @@ async function salvarConta(f, d) {
   btn.disabled = true;
   try {
     Object.assign(base, ehPes() ? { fornecedorId:null, fornecedorNome:null } : await fornResolve(d));
+    if (!ehPes() && d.setor === ID_FORN) base.descricao = base.fornecedorNome;
     const C = Store.s[kC()], id = f.dataset.id;
     let defs;
     if (id) { await colContas().doc(id).update(base); defs = C.defs.map(x => x.id === id ? { ...x, ...base } : x); }
@@ -1068,6 +1077,7 @@ function formContaPag(oc) {
     <p style="font-size:14px;margin-bottom:16px"><b style="color:var(--t1)">${esc(oc.descricao)}</b> · vence ${dataBR(oc.vencimento)}</p>
     <label class="f"><span>Valor pago (R$)</span><input name="valor" inputmode="decimal" value="${esc(String(oc.valor).replace('.', ','))}" autocomplete="off"></label>
     <label class="f"><span>Data do pagamento</span><input name="pagoEm" type="date" value="${hojeStr()}" max="${hojeStr()}"></label>
+    ${jurosCampo(0)}
     <div class="acoes"><button class="btn pri full" type="submit">Confirmar pagamento</button></div></form>`;
 }
 async function salvarContaPag(f, d) {
@@ -1076,9 +1086,10 @@ async function salvarContaPag(f, d) {
   const valor = parseValor(d.valor), cid = f.dataset.c, mes = f.dataset.m;
   if (!(valor > 0)) return erro('Digite o valor pago. Exemplo: 289,90');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.pagoEm || '') || d.pagoEm > hojeStr()) return erro('Escolha a data do pagamento (hoje ou antes).');
+  const JJ = lerJuros(d, valor); if (JJ.erro) return erro(JJ.erro);
   btn.disabled = true;
   try {
-    const rec = { contaId:cid, mes, pago:true, pagoEm:d.pagoEm, valor, por:Store.s.user.uid };
+    const rec = { contaId:cid, mes, pago:true, pagoEm:d.pagoEm, valor, juros:JJ.j, por:Store.s.user.uid };
     await colContasPag().doc(cid + '_' + mes).set(rec, { merge:true });
     const C = Store.s[kC()]; fecharModal();
     Store.set({ [kC()]:{ ...C, pag:{ ...C.pag, [cid + '_' + mes]:{ id:cid + '_' + mes, ...rec } }, erro:null } });
@@ -1153,34 +1164,37 @@ function formBoleto(b) {
   const v = b ? String(b.valor).replace('.', ',') : '';
   return `<form data-form="boleto" data-id="${b ? esc(b.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
-    <label class="f"><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
+    <label class="f ${b && b.setor === ID_FORN ? 'hide' : ''}" data-desc><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
     <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
     ${fornCampo(b ? b.setor : setoresB()[0].id, b && b.fornecedorId)}
     <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${b ? esc(b.vencimento) : hojeStr()}"></label>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
+    ${jurosCampo(b && b.juros)}
     <div class="acoes"><button class="btn pri full" type="submit">${b ? 'Salvar alterações' : 'Salvar boleto'}</button>
     ${b && admin ? `<button type="button" class="btn bad full" data-act="boletoApagar" data-id="${esc(b.id)}">Apagar boleto</button>` : ''}</div></form>`;
 }
 async function salvarBoleto(f, d) {
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
-  const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), venc = d.vencimento || '';
-  if (!desc) return erro('Escreva o que é o boleto.');
+  let desc = (d.descricao || '').trim(); const valor = parseValor(d.valor), venc = d.vencimento || '';
+  if (!desc && d.setor !== ID_FORN) return erro('Escreva o que é o boleto.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) return erro('Escolha a data de vencimento.');
   if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
   const ef = fornValida(d); if (ef) return erro(ef);
+  const JJ = lerJuros(d, valor); if (JJ.erro) return erro(JJ.erro);
   btn.disabled = true;
   try {
     const FF = await fornResolve(d);
+    if (d.setor === ID_FORN) desc = FF.fornecedorNome;
     const B = Store.s.boletos, id = f.dataset.id;
     let lista;
     if (id) {
-      const mud = { descricao:desc, setor:d.setor, vencimento:venc, valor, ...FF };
+      const mud = { descricao:desc, setor:d.setor, vencimento:venc, valor, juros:JJ.j, ...FF };
       await colBoletos().doc(id).update(mud);
       lista = B.lista.map(x => x.id === id ? { ...x, ...mud } : x);
     } else {
-      const novo = { descricao:desc, setor:d.setor, vencimento:venc, valor, ...FF, pago:false, pagoEm:null, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const novo = { descricao:desc, setor:d.setor, vencimento:venc, valor, juros:JJ.j, ...FF, pago:false, pagoEm:null, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
       const ref = colBoletos().doc();
       await ref.set(novo);
       lista = B.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]);
@@ -1450,7 +1464,7 @@ function setorHTML(s, set) {
   const res = v - c;
   const cards = `<div class="rcards">${cardE('var(--ok)', 'Vendas', brl(v), nBolL(ls.filter(x => x.tipo === 'venda').length))}${cardE('var(--err)', 'Custos', brl(c), nBolL(ls.filter(x => x.tipo === 'custo').length))}${cardE('var(--pur)', 'Resultado', brl(res), res >= 0 ? 'vendas menos custos' : 'no vermelho')}${cardE('var(--warn)', 'Margem', v > 0 ? pct(res / v) : '—', v > 0 ? 'resultado ÷ vendas' : 'sem vendas no mês')}</div>`;
   const rows = ls.map(x => `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${[todos ? nomeSetor(x.setor) : '', x.fornecedorNome || '', x.categoria || ''].filter(Boolean).map(esc).join(' · ')}</span></div>
+      <div class="bnome"><b title="${esc(x.fornecedorNome || x.descricao || x.categoria)}">${esc(x.fornecedorNome || x.descricao || x.categoria || 'Sem descrição')}</b><span>${[todos ? nomeSetor(x.setor) : '', x.fornecedorNome && x.descricao ? x.descricao : '', x.categoria || '', Number(x.juros) > 0 ? 'juros ' + brl(x.juros) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
       <div class="bven">${dataBR(x.data)}</div><div class="bval">${brl(x.valor)}</div><div class="bst">${badgeTipo(x.tipo)}</div>
       <div class="bact"><button class="ib ${x.temComprovante ? 'tem' : ''}" data-act="lcComprovante" data-id="${esc(x.id)}" aria-label="${x.temComprovante ? 'Ver foto da nota' : 'Anexar foto da nota'}">${ico('camera')}</button>
         <button class="ib" data-act="lancEditar" data-id="${esc(x.id)}" aria-label="Editar lançamento">${ico('edit')}</button></div></div>`).join('');
@@ -1480,6 +1494,7 @@ function formLanc(l, setorPadrao, tipoPadrao) {
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
+    ${jurosCampo(l && l.juros, tipo === 'custo' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${l ? esc(l.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Fechamento do caixa, NF 4821" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${l ? 'Salvar alterações' : 'Salvar lançamento'}</button>
     ${l && admin ? `<button type="button" class="btn bad full" data-act="lancApagar" data-id="${esc(l.id)}">Apagar lançamento</button>` : ''}</div></form>`;
@@ -1493,6 +1508,7 @@ async function salvarLanc(f, d) {
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
+  const JJ = d.tipo === 'custo' ? lerJuros(d, valor) : { j:0 }; if (JJ.erro) return erro(JJ.erro);
   const precisaForn = d.setor === ID_FORN && d.tipo === 'custo';
   const novoNome = (d.novoFornecedor || '').trim();
   if (precisaForn) {
@@ -1503,7 +1519,7 @@ async function salvarLanc(f, d) {
   try {
     let forn = null;
     if (precisaForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
-    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
+    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), juros:JJ.j, fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
     const L = Store.s.lanc; let ref = id ? colLanc().doc(id) : colLanc().doc(), novo = null;
     if (id) await ref.update(mud);
     else { novo = { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(novo); }
@@ -1793,16 +1809,19 @@ async function carregarRel() {
   relBusca = mes;
   const ini = mes + '-01', fim = mesAdd(mes, 1) + '-01';
   try {
-    const [lq, bq, pres, fq, eq, mq, pq, tq] = await Promise.all([
+    const [lq, bq, pres, fq, eq, mq, pq, tq, bpq, cpq, cdq] = await Promise.all([
       colLanc().where('data', '>=', ini).where('data', '<', fim).get(),
       db.collection(`empresas/${EMPRESA}/boletos`).where('vencimento', '>=', ini).where('vencimento', '<', fim).get(),
       buscarPresMes(mes), colFree().get(),
       db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get(),
-      db.collection(`empresas/${EMPRESA}/metas`).get(), colProd().get(), colTar().get()
+      db.collection(`empresas/${EMPRESA}/metas`).get(), colProd().get(), colTar().get(),
+      db.collection(`empresas/${EMPRESA}/boletos`).where('pagoEm', '>=', ini).where('pagoEm', '<', fim).get(),
+      colContasPag('contas').where('pagoEm', '>=', ini).where('pagoEm', '<', fim).get(),
+      colContas('contas').get()
     ]);
     const ar = q => q.docs.map(d => ({ id:d.id, ...d.data() })), metas = {};
     mq.docs.forEach(d => { metas[d.id] = Number(d.data().vendas) || 0; });
-    const dados = { lanc:ar(lq), boletos:ar(bq), pres:Object.values(pres), free:ar(fq), energia:ar(eq).filter(x => x.loja), metas, prod:ar(pq), tar:ar(tq) };
+    const dados = { lanc:ar(lq), boletos:ar(bq), pres:Object.values(pres), free:ar(fq), energia:ar(eq).filter(x => x.loja), metas, prod:ar(pq), tar:ar(tq), bolPg:ar(bpq), contasPg:ar(cpq), contasDefs:ar(cdq) };
     if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados, chave:mes, erro:null } });
   } catch (e) { console.error(e); if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados:null, chave:mes, erro:'Não foi possível montar o relatório. ' + msgErro(e) } }); }
   finally { relBusca = null; }
@@ -1827,7 +1846,10 @@ function calcRel(d, esc, mes) {
   free.devendo = free.total - free.pago;
   const prod = f(d.prod), emEst = prod.reduce((s, x) => s + (Number(x.qtd) || 0) * (Number(x.custoUn) || 0), 0), abaixo = prod.filter(x => sitEstoque(x) !== 'ok');
   const tar = f(d.tar), tAb = tar.filter(x => !x.feita), tAtr = tAb.filter(x => x.prazo && x.prazo < hoje), tFeitas = tar.filter(x => x.feita && (x.feitaEm || '').slice(0, 7) === mes);
-  return { lanc, vendas, custos, res:vendas - custos, margem:vendas > 0 ? (vendas - custos) / vendas : 0, catV:porCat(ven, CAT_VENDA), catC:porCat(cus, CAT_CUSTO), setores, meta, metaP:meta > 0 ? vendas / meta : null, bol, pagos, venc, avc, free, energia:geral && d.energia.length ? somaEn(d.energia) : null, emEst, abaixo, nProd:prod.length, tAb, tAtr, tFeitas };
+  const setC = {}; (d.contasDefs || []).forEach(c => { setC[c.id] = c.setor; });
+  const jL = somaK(cus, 'juros'), jB = somaK(f(d.bolPg || []), 'juros'), jC = somaK((d.contasPg || []).filter(p => geral || setC[p.contaId] === esc), 'juros');
+  const juros = { l:jL, b:jB, c:jC, total:jL + jB + jC, nl:cus.filter(x => Number(x.juros) > 0).length, nb:f(d.bolPg || []).filter(x => Number(x.juros) > 0).length, nc:(d.contasPg || []).filter(p => (geral || setC[p.contaId] === esc) && Number(p.juros) > 0).length };
+  return { juros, lanc, vendas, custos, res:vendas - custos, margem:vendas > 0 ? (vendas - custos) / vendas : 0, catV:porCat(ven, CAT_VENDA), catC:porCat(cus, CAT_CUSTO), setores, meta, metaP:meta > 0 ? vendas / meta : null, bol, pagos, venc, avc, free, energia:geral && d.energia.length ? somaEn(d.energia) : null, emEst, abaixo, nProd:prod.length, tAb, tAtr, tFeitas };
 }
 function relatoriosHTML(s) {
   const R = s.rel, mes = R.mes, esc_ = R.esc, nome = esc_ === 'geral' ? 'Relatório geral' : 'Relatório · ' + nomeSetor4(esc_);
@@ -1848,6 +1870,7 @@ function relatoriosHTML(s) {
   if (esc_ === 'geral') corpo += painel('Resultado por setor', tb(['Subsetor', 'Vendas', 'Custos', 'Resultado', 'Margem', 'Meta', '% da meta'], x.setores.map(r => tr([esc(r.nome), brl(r.v), brl(r.c), `<span style="color:${cor(r.r)}">${brl(r.r)}</span>`, r.v > 0 ? pct(r.r / r.v) : '—', r.m > 0 ? brl(r.m) : '—', r.mp === null ? '—' : pct(r.mp)]).replace(/^/, '')).concat([tr(['<b>Total</b>', `<b>${brl(x.vendas)}</b>`, `<b>${brl(x.custos)}</b>`, `<b style="color:${cor(x.res)}">${brl(x.res)}</b>`, `<b>${pct(x.margem)}</b>`, x.meta > 0 ? `<b>${brl(x.meta)}</b>` : '—', x.metaP === null ? '—' : `<b>${pct(x.metaP)}</b>`])]), ''));
   corpo += `<div class="duo">${painel('Vendas por categoria', cat(x.catV, x.vendas))}${painel('Custos por categoria', cat(x.catC, x.custos))}</div>`;
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
+  corpo += painel('Juros pagos no mês', tb(['Origem', 'Qtd', 'Juros'], [tr(['Custos lançados', x.juros.nl, brl(x.juros.l)]), tr(['Boletos pagos no mês', x.juros.nb, brl(x.juros.b)]), tr(['Contas agendadas pagas no mês', x.juros.nc, brl(x.juros.c)]), tr(['<b>Total de juros</b>', `<b>${x.juros.nl + x.juros.nb + x.juros.nc}</b>`, `<b style="color:${x.juros.total > 0 ? 'var(--warn)' : 'var(--t1)'}">${brl(x.juros.total)}</b>`])], '')) + '\n  ';
   corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
     ${esc_ !== 'geral' ? '' : painel('Freelancers do mês', tb(['Item', 'Valor'], [tr(['Diárias presentes', x.free.dias]), tr(['Faltas', x.free.faltas]), tr(['Total das diárias', brl(x.free.total)]), tr(['Já pago', brl(x.free.pago)]), tr(['<b>A pagar</b>', `<b>${brl(x.free.devendo)}</b>`])], ''))}</div>`;
   corpo += `<div class="duo">${painel('Estoque e tarefas', tb(['Item', 'Valor'], [tr(['Produtos cadastrados', x.nProd]), tr(['Valor em estoque (hoje)', brl(x.emEst)]), tr(['Abaixo do mínimo ou zerados', x.abaixo.length]), tr(['Tarefas abertas', x.tAb.length]), tr(['Tarefas atrasadas', x.tAtr.length]), tr(['Tarefas concluídas no mês', x.tFeitas.length])], ''))}
@@ -1903,17 +1926,20 @@ function pessoalHTML(s) {
   const porCat = Object.entries(g.reduce((o, x) => { const c = x.categoria || 'Sem categoria'; o[c] = (o[c] || 0) + (Number(x.valor) || 0); return o; }, {})).sort((a, b) => b[1] - a[1]);
   const card = (c, l, v, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${c}"></span>${l}</span><span class="v">${v}</span><span class="q">${q}</span></div>`;
   const cards = `<div class="rcards">${card('var(--ok)', 'Entradas', brl(te), nLanc(en.length))}${card('var(--err)', 'Gastos', brl(tg), nLanc(g.length))}${card('var(--pur)', 'Saldo do mês', `<span style="color:${sal >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(sal)}</span>`, sal >= 0 ? 'entradas − gastos' : 'gastou mais do que entrou')}${card('var(--warn)', 'Maior gasto', porCat.length ? esc(porCat[0][0]) : '—', porCat.length ? brl(porCat[0][1]) + ' · ' + pct(tg > 0 ? porCat[0][1] / tg : 0) : 'sem gastos no mês')}</div>`;
+  const cpP = Object.values((s.contasP && s.contasP.pag) || {}).filter(p => p.pago && (p.pagoEm || '').slice(0, 7) === mes && Number(p.juros) > 0);
+  const jG = somaK(g, 'juros'), jC = somaK(cpP, 'juros'), nJG = g.filter(x => Number(x.juros) > 0).length;
+  const jurosQ = `<section class="panel" style="margin:0"><div class="ph2"><h3>Juros pagos no mês</h3></div>${`<div class="scroll-x"><table><thead><tr><th>Origem</th><th style="text-align:right">Qtd</th><th style="text-align:right">Juros</th></tr></thead><tbody><tr><td style="color:var(--t1)">Gastos lançados</td><td style="text-align:right">${nJG}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${brl(jG)}</td></tr><tr><td style="color:var(--t1)">Contas a pagar pagas no mês</td><td style="text-align:right">${cpP.length}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${brl(jC)}</td></tr><tr><td style="color:var(--t1)"><b>Total de juros</b></td><td style="text-align:right"><b>${nJG + cpP.length}</b></td><td style="text-align:right;font-variant-numeric:tabular-nums"><b style="color:${jG + jC > 0 ? 'var(--warn)' : 'var(--t1)'}">${brl(jG + jC)}</b></td></tr></tbody></table></div>`}</section>`;
   const barras = porCat.length ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Gastos por categoria</h3></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">${porCat.map(([c, v]) => `<div class="meta"><div class="r"><span>${esc(c)}</span><b>${brl(v)} · ${pct(tg > 0 ? v / tg : 0)}</b></div><div class="trk" aria-hidden="true"><div style="width:${tg > 0 ? Math.max(2, Math.round(v / tg * 100)) : 0}%"></div></div></div>`).join('')}</div></section>` : '';
   const ls = P.lista.filter(x => P.filtro === 'todos' || x.tipo === P.filtro).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   const rows = ls.map(x => `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}</span></div>
+      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}${Number(x.juros) > 0 ? ' · juros ' + esc(brl(x.juros)) : ''}</span></div>
       <div class="bven">${dataBR(x.data)}</div><div class="bval" style="color:${x.tipo === 'entrada' ? 'var(--ok)' : 'var(--t1)'}">${x.tipo === 'entrada' ? '+' : '−'}${brl(x.valor)}</div><div class="bst"><span class="badge ${x.tipo === 'entrada' ? 'ok' : 'err'}">${x.tipo === 'entrada' ? 'Entrada' : 'Gasto'}</span></div>
       <div class="bact noprint"><button class="ib" data-act="pesEditar" data-id="${esc(x.id)}" aria-label="Editar">${ico('edit')}</button></div></div>`).join('');
   const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table">
       <div class="brow hd" role="row"><span>Descrição</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span class="noprint"></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nada lançado em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Novo gasto" ou "+ Nova entrada".</div>`}</div></section>`;
   const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão · Pessoal</b><span>Extrato de ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
-  return head + erro + `<div class="stack">${nav}${topo}${sug}${cards}${barras}${lista}</div>`;
+  return head + erro + `<div class="stack">${nav}${topo}${sug}${cards}${barras}${jurosQ}${lista}</div>`;
 }
 const nLanc = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
 function opcoesCat(tp, atual) {
@@ -1930,6 +1956,7 @@ function formPes(m, tipoPadrao) {
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${m ? esc(String(m.valor).replace('.', ',')) : ''}" placeholder="123,45" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${m ? esc(m.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${opcoesCat(tipo, m ? m.categoria : '')}</select></label>
+    ${jurosCampo(m && m.juros, tipo === 'gasto' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${m ? esc(m.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Feira da semana, aluguel apto 12" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${m ? 'Salvar alterações' : 'Salvar'}</button>
     ${m ? `<button type="button" class="btn bad full" data-act="pesApagar" data-id="${esc(m.id)}">Apagar</button>` : ''}</div></form>`;
@@ -1942,9 +1969,10 @@ async function salvarPes(f, d) {
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 123,45');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
+  const JJ = d.tipo === 'gasto' ? lerJuros(d, valor) : { j:0 }; if (JJ.erro) return erro(JJ.erro);
   btn.disabled = true;
   try {
-    const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim() };
+    const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), juros:JJ.j };
     const P = Store.s.pes; const ref = id ? colPes().doc(id) : colPes().doc();
     if (id) await ref.update(mud); else await ref.set({ ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
@@ -2429,6 +2457,7 @@ const acoes = {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
     f.querySelectorAll('#tipoSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === tp));
     f.querySelector('#catSel').innerHTML = (tp === 'venda' ? CAT_VENDA : CAT_CUSTO).map(c => `<option>${esc(c)}</option>`).join('');
+    const jj = f.querySelector('[data-juros]'); if (jj) jj.classList.toggle('hide', tp !== 'custo');
   },
   setorTab(el) { Store.set({ lanc:{ ...Store.s.lanc, tab:el.dataset.t } }); },
   lmes(el) { const L = Store.s.lanc, novo = mesAdd(L.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ lanc:{ ...L, mes:novo, erro:null } }); },
@@ -2528,6 +2557,7 @@ const acoes = {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
     f.querySelectorAll('#tipoSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === tp));
     f.querySelector('#catSel').innerHTML = opcoesCat(tp, '');
+    const jj = f.querySelector('[data-juros]'); if (jj) jj.classList.toggle('hide', tp !== 'gasto');
   },
   pesApagar(el) {
     const m = (Store.s.pes.lista || []).find(x => x.id === el.dataset.id); if (!m) return;
@@ -2658,7 +2688,7 @@ document.addEventListener('change', e => {
 document.addEventListener('change', e => {
   const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
-  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); }
+  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
