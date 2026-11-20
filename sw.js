@@ -1,6 +1,6 @@
-// gestao-356 · service worker · v3
+// gestao-356 · service worker · v4
 // Guarda só o "esqueleto" do app (arquivos do próprio site). Firebase e fontes passam direto pela rede.
-const VERSAO = 'g356-v3';
+const VERSAO = 'g356-v4';
 const ARQUIVOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './logo-356.png'];
 
 self.addEventListener('install', e => {
