@@ -4,6 +4,8 @@ name: Avisos das 9h
 on:
   schedule:
     - cron: '0 12 * * *'
+  push:
+    paths: ['scripts/teste.flag']
   workflow_dispatch:
     inputs:
       teste:
@@ -22,4 +24,4 @@ jobs:
       - run: node scripts/avisos.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          TESTE: ${{ github.event.inputs.teste }}
+          TESTE: ${{ github.event.inputs.teste || (github.event_name == 'push' && 'true') || 'false' }}
