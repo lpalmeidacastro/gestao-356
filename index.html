@@ -507,7 +507,7 @@ async function ativarAvisos() {
 const Store = {
   s: { fase:'carregando', user:null, perfil:null, rota:'painel', online:navigator.onLine,
        painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null },
-       boletos:{ lista:null, filtro:'abertos', aba:'boletos', erro:null }, contas:{ defs:null, pag:{}, mes:mesAtual(), erro:null },
+       boletos:{ lista:null, filtro:'abertos', aba:'todas', erro:null }, contas:{ defs:null, pag:{}, mes:mesAtual(), erro:null }, contasP:{ defs:null, pag:{}, mes:mesAtual(), erro:null },
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
@@ -748,20 +748,22 @@ const badgeSit = s => `<span class="badge ${s === 'pago' ? 'ok' : s === 'vencido
 const vencidosCount = s => (s.boletos.lista ? s.boletos.lista.filter(b => sitBoleto(b) === 'vencido').length : 0) + contasPseudo(s).filter(b => sitBoleto(b) === 'vencido').length;
 
 /* ============ contas agendadas (únicas ou recorrentes) ============ */
-const colContas = () => db.collection(`empresas/${EMPRESA}/contas`);
-const colContasPag = () => db.collection(`empresas/${EMPRESA}/contasPag`);
+const ehPes = () => Store.s.rota === 'pessoal';
+const kC = () => ehPes() ? 'contasP' : 'contas';
+const colContas = (K = kC()) => db.collection(K === 'contasP' ? `pessoal/${EMPRESA}/contas` : `empresas/${EMPRESA}/contas`);
+const colContasPag = (K = kC()) => db.collection(K === 'contasP' ? `pessoal/${EMPRESA}/contasPag` : `empresas/${EMPRESA}/contasPag`);
 const diasNoMes = m => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo, 0).getDate(); };
-let contasBusca = false;
-async function carregarContas(forcar) {
-  if (contasBusca || (Store.s.contas.defs && !forcar)) return;
-  contasBusca = true;
+const contasBusca = { contas:false, contasP:false };
+async function carregarContas(forcar, K = 'contas') {
+  if (contasBusca[K] || (Store.s[K].defs && !forcar)) return;
+  contasBusca[K] = true;
   try {
-    const [a, b] = await Promise.all([colContas().get(), colContasPag().get()]);
+    const [a, b] = await Promise.all([colContas(K).get(), colContasPag(K).get()]);
     const defs = a.docs.map(d => ({ id:d.id, ...d.data() })), pag = {};
     b.docs.forEach(d => { pag[d.id] = { id:d.id, ...d.data() }; });
-    Store.set({ contas:{ ...Store.s.contas, defs, pag, erro:null } });
-  } catch (e) { console.error(e); Store.set({ contas:{ ...Store.s.contas, defs:Store.s.contas.defs || [], erro:'Não foi possível carregar as contas agendadas. ' + msgErro(e) } }); }
-  finally { contasBusca = false; }
+    Store.set({ [K]:{ ...Store.s[K], defs, pag, erro:null } });
+  } catch (e) { console.error(e); Store.set({ [K]:{ ...Store.s[K], defs:Store.s[K].defs || [], erro:'Não foi possível carregar as contas agendadas. ' + msgErro(e) } }); }
+  finally { contasBusca[K] = false; }
 }
 /* uma "ocorrência" é a conta de um mês: a recorrente vale em todo mês a partir do início; a única, só no mês do vencimento */
 function ocorrencias(defs, pag, mes) {
@@ -789,10 +791,10 @@ function contasPseudo(s) {
   for (let i = -3; i <= 0; i++) r = r.concat(ocorrencias(C.defs, C.pag, mesAdd(m0, i)));
   return r;
 }
-const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div></div>`;
-function contasHTML(s) {
-  const C = s.contas, mes = C.mes;
-  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
+const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'todas' ? 'on' : ''}" data-act="abaConta" data-a="todas">Todas</button><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div></div>`;
+function contasHTML(s, emb) {
+  const K = emb ? 'contasP' : 'contas', C = s[K], mes = C.mes;
+  const head = emb ? '' : `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
     <button class="btn pri" data-act="contaNova">+ Nova conta agendada</button></div>` + abasContas('contas');
   const erro = C.erro ? `<div class="alert err on" role="alert">${esc(C.erro)} <button class="btn ghost" data-act="contasRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
   if (C.defs === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
@@ -804,9 +806,9 @@ function contasHTML(s) {
   const nav = `<div class="tabs2 noprint"><span class="muted" style="font-size:13px">Contas que se repetem todo mês aparecem sozinhas em cada mês.</span>
     <div class="mes" role="group" aria-label="Mês"><button data-act="cmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="cmes" data-d="1" aria-label="Próximo mês" ${mes < mesAdd(mesAtual(), 12) ? '' : 'disabled'}>${ico('dir')}</button></div></div>`;
   const rows = oc.map(b => {
-    const st = sitBoleto(b);
+    const st = sitBoleto(b), rep = b.recorrente ? 'todo mês' : 'só uma vez';
     return `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${b.recorrente ? 'todo mês' : 'só uma vez'}</span></div>
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${emb ? rep : esc(nomeSetor(b.setor)) + ' · ' + rep}</span></div>
       <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
       <div class="bval">${brl(b.valor)}</div>
       <div class="bst">${badgeSit(st)}</div>
@@ -815,12 +817,61 @@ function contasHTML(s) {
         ${b.pago ? `<button class="btn" data-act="contaDesfazer" data-c="${esc(b.contaId)}" data-m="${b.mes}">Desfazer</button>` : `<button class="btn pg" data-act="contaPagar" data-c="${esc(b.contaId)}" data-m="${b.mes}">Marcar pago</button>`}
       </div></div>`;
   }).join('');
-  const vazio = C.defs.length ? 'Nenhuma conta neste mês.' : 'Nenhuma conta agendada ainda. Use "+ Nova conta agendada" (luz, água, internet, aluguel...).';
-  return head + erro + `<div class="stack">${nav}
+  const vazio = C.defs.length ? 'Nenhuma conta neste mês.' : emb ? 'Nenhuma conta a pagar ainda. Use "+ Nova conta" (cartão, financiamento, escola, condomínio...).' : 'Nenhuma conta agendada ainda. Use "+ Nova conta agendada" (luz, água, internet, aluguel...).';
+  const corpo = `${nav}
     <section aria-label="Resumo" class="rcards">${cards}</section>
     <section class="panel" style="margin:0"><div class="ph2"><h3>Contas de ${esc(mesNome(mes, true))}</h3></div>
       <div role="table"><div class="brow hd" role="row"><span>Conta</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
-      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazio}</div>`}</div></section></div>`;
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazio}</div>`}</div></section>`;
+  return emb ? erro + corpo : head + erro + `<div class="stack">${corpo}</div>`;
+}
+/* aba "Todas": boletos + contas agendadas (empresa) numa lista só */
+function todasItens(s) {
+  const C = s.contas, m0 = mesAtual(); let oc = [];
+  for (let i = -3; i <= 1; i++) oc = oc.concat(ocorrencias(C.defs, C.pag, mesAdd(m0, i)));
+  return s.boletos.lista.map(b => ({ ...b, item:'boleto' })).concat(oc.map(o => ({ ...o, item:'conta' })));
+}
+function todasHTML(s) {
+  const B = s.boletos, f = B.filtro;
+  const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="contaNova">+ Nova conta agendada</button><button class="btn pri" data-act="boletoNovo">+ Novo boleto</button></div></div>` + abasContas('todas');
+  const erro = (B.erro ? `<div class="alert err on" role="alert">${esc(B.erro)} <button class="btn ghost" data-act="boletosRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '')
+    + (s.contas.erro ? `<div class="alert err on" role="alert">${esc(s.contas.erro)} <button class="btn ghost" data-act="contasRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '');
+  if (B.lista === null || s.contas.defs === null) return head + erro + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const tudo = todasItens(s), r = resumoBoletos(tudo);
+  const nI = n => n + (n === 1 ? ' item' : ' itens');
+  const card = (id, cor, label, valor, q) => `<button class="rc ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${brl(valor)}</span><span class="q">${q}</span></button>`;
+  const cards = card('vencido', 'var(--err)', 'Vencidos', somaB(r.venc), nI(r.venc.length))
+    + card('avencer', 'var(--warn)', 'A vencer', somaB(r.av), nI(r.av.length))
+    + card('pago', 'var(--ok)', 'Pagos no mês', somaB(r.pg), nI(r.pg.length))
+    + card('abertos', 'var(--pur)', 'Não pagos', somaB(r.aberto), nI(r.aberto.length) + ' em aberto');
+  const filtros = [['abertos', 'Não pagos'], ['vencido', 'Vencidos'], ['avencer', 'A vencer'], ['pago', 'Pagos'], ['todos', 'Todos']];
+  const titulos = { abertos:'Não pagos', vencido:'Vencidos', avencer:'A vencer', pago:'Pagos (últimos 3 meses)', todos:'Todos os boletos e contas' };
+  let linhas = tudo.filter(b => f === 'todos' ? true : f === 'abertos' ? !b.pago : f === 'pago' ? b.pago : sitBoleto(b) === f);
+  linhas = f === 'pago' ? linhas.sort((a, b) => (b.pagoEm || '').localeCompare(a.pagoEm || '')) : linhas.sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao));
+  const rows = linhas.map(b => {
+    const st = sitBoleto(b), bol = b.item === 'boleto';
+    const tipo = bol ? 'boleto' : (b.recorrente ? 'conta · todo mês' : 'conta · só uma vez');
+    const acoes = bol
+      ? `<button class="ib ${b.temComprovante ? 'tem' : ''}" data-act="comprovante" data-id="${esc(b.id)}" aria-label="${b.temComprovante ? 'Ver comprovante' : 'Anexar comprovante'}">${ico('camera')}</button>
+        <button class="ib" data-act="boletoEditar" data-id="${esc(b.id)}" aria-label="Editar boleto">${ico('edit')}</button>
+        <button class="btn ${b.pago ? '' : 'pg'}" data-act="pagar" data-id="${esc(b.id)}">${b.pago ? 'Desfazer' : 'Marcar pago'}</button>`
+      : `<button class="ib" data-act="contaEditar" data-id="${esc(b.contaId)}" aria-label="Editar conta">${ico('edit')}</button>
+        ${b.pago ? `<button class="btn" data-act="contaDesfazer" data-c="${esc(b.contaId)}" data-m="${b.mes}">Desfazer</button>` : `<button class="btn pg" data-act="contaPagar" data-c="${esc(b.contaId)}" data-m="${b.mes}">Marcar pago</button>`}`;
+    return `<div class="brow" role="row">
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${tipo}</span></div>
+      <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
+      <div class="bval">${brl(b.valor)}</div>
+      <div class="bst">${badgeSit(st)}</div>
+      <div class="bact">${acoes}</div></div>`;
+  }).join('');
+  return head + erro + `<div class="stack">
+    <section aria-label="Resumo" class="rcards">${cards}</section>
+    <section class="panel" style="margin:0">
+      <div class="ph2"><h3>${titulos[f]}</h3><div class="chips" role="group" aria-label="Filtro">${filtros.map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}">${n}</button>`).join('')}</div></div>
+      <div role="table"><div class="brow hd" role="row"><span>Conta</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${tudo.length ? 'Nada nesta situação.' : 'Nada cadastrado ainda. Use "+ Novo boleto" ou "+ Nova conta agendada".'}</div>`}</div>
+    </section></div>`;
 }
 function formConta(c) {
   const admin = Store.s.perfil.papel === 'admin', rec = c ? !!c.recorrente : true;
@@ -828,7 +879,7 @@ function formConta(c) {
   return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    ${ehPes() ? '' : `<label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`}
     <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
     <div data-so="rec" ${rec ? '' : 'class="hide"'}>
       <label class="f"><span>Dia do vencimento (1 a 31)</span><input name="dia" type="number" min="1" max="31" inputmode="numeric" value="${c && c.dia ? esc(c.dia) : ''}" placeholder="Ex.: 10"></label>
@@ -848,8 +899,8 @@ async function salvarConta(f, d) {
   const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), rec = d.tipo !== 'uma';
   if (!desc) return erro('Escreva que conta é.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
-  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
-  const base = { descricao:desc, setor:d.setor, valor, recorrente:rec };
+  if (!ehPes() && !SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  const base = { descricao:desc, setor:ehPes() ? 'pessoal' : d.setor, valor, recorrente:rec };
   if (rec) {
     const dia = Number(d.dia);
     if (!(Number.isInteger(dia) && dia >= 1 && dia <= 31)) return erro('Digite o dia do vencimento, de 1 a 31.');
@@ -862,7 +913,7 @@ async function salvarConta(f, d) {
   }
   btn.disabled = true;
   try {
-    const C = Store.s.contas, id = f.dataset.id;
+    const C = Store.s[kC()], id = f.dataset.id;
     let defs;
     if (id) { await colContas().doc(id).update(base); defs = C.defs.map(x => x.id === id ? { ...x, ...base } : x); }
     else {
@@ -871,7 +922,7 @@ async function salvarConta(f, d) {
       defs = C.defs.concat([{ id:ref.id, ...novo, criadoEm:null }]);
     }
     fecharModal();
-    Store.set({ contas:{ ...Store.s.contas, defs, erro:null } });
+    Store.set({ [kC()]:{ ...Store.s[kC()], defs, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 function formContaPag(oc) {
@@ -892,13 +943,14 @@ async function salvarContaPag(f, d) {
   try {
     const rec = { contaId:cid, mes, pago:true, pagoEm:d.pagoEm, valor, por:Store.s.user.uid };
     await colContasPag().doc(cid + '_' + mes).set(rec, { merge:true });
-    const C = Store.s.contas; fecharModal();
-    Store.set({ contas:{ ...C, pag:{ ...C.pag, [cid + '_' + mes]:{ id:cid + '_' + mes, ...rec } }, erro:null } });
+    const C = Store.s[kC()]; fecharModal();
+    Store.set({ [kC()]:{ ...C, pag:{ ...C.pag, [cid + '_' + mes]:{ id:cid + '_' + mes, ...rec } }, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 
 function boletosHTML(s) {
   if (s.boletos.aba === 'contas') return contasHTML(s);
+  if (s.boletos.aba === 'todas') return todasHTML(s);
   const B = s.boletos, f = B.filtro;
   const head = `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
     <button class="btn pri" data-act="boletoNovo">+ Novo boleto</button></div>` + abasContas('boletos');
@@ -1637,7 +1689,7 @@ function relatoriosHTML(s) {
   corpo += `<div class="duo">${painel('Vendas por categoria', cat(x.catV, x.vendas))}${painel('Custos por categoria', cat(x.catC, x.custos))}</div>`;
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
   corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
-    ${painel('Freelancers do mês', tb(['Item', 'Valor'], [tr(['Diárias presentes', x.free.dias]), tr(['Faltas', x.free.faltas]), tr(['Total das diárias', brl(x.free.total)]), tr(['Já pago', brl(x.free.pago)]), tr(['<b>A pagar</b>', `<b>${brl(x.free.devendo)}</b>`])], ''))}</div>`;
+    ${esc_ !== 'geral' ? '' : painel('Freelancers do mês', tb(['Item', 'Valor'], [tr(['Diárias presentes', x.free.dias]), tr(['Faltas', x.free.faltas]), tr(['Total das diárias', brl(x.free.total)]), tr(['Já pago', brl(x.free.pago)]), tr(['<b>A pagar</b>', `<b>${brl(x.free.devendo)}</b>`])], ''))}</div>`;
   corpo += `<div class="duo">${painel('Estoque e tarefas', tb(['Item', 'Valor'], [tr(['Produtos cadastrados', x.nProd]), tr(['Valor em estoque (hoje)', brl(x.emEst)]), tr(['Abaixo do mínimo ou zerados', x.abaixo.length]), tr(['Tarefas abertas', x.tAb.length]), tr(['Tarefas atrasadas', x.tAtr.length]), tr(['Tarefas concluídas no mês', x.tFeitas.length])], ''))}
     ${esc_ === 'geral' ? painel('Energia solar (Loja 01 + Loja 02)', x.energia ? tb(['Item', 'Valor'], [tr(['Sem desconto', brl(x.energia.semDesconto)]), tr(['Pago ao dono da usina', brl(x.energia.pagoUsina)]), tr(['Pago à Enel', brl(x.energia.pagoEnel)]), tr(['<b>Economia</b>', `<b style="color:${cor(ecoEn(x.energia))}">${brl(ecoEn(x.energia))} (${pct(ecoPctEn(x.energia))})</b>`]), tr(['Cobertura solar', pct(cobEn(x.energia))])], '') : '<div class="pb muted" style="font-size:14px">Sem dados de energia neste mês.</div>') : ''}</div>`;
   if (esc_ !== 'geral') corpo += painel('Lançamentos do mês', tb(['Data / descrição', 'Tipo', 'Categoria', 'Valor'], x.lanc.slice().sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(l => tr([dataBR(l.data) + ' · ' + esc(l.descricao || '—'), l.tipo === 'venda' ? 'Venda' : 'Custo', esc(l.categoria || '—'), `<span style="color:${l.tipo === 'venda' ? 'var(--ok)' : 'var(--err)'}">${l.tipo === 'venda' ? '' : '−'}${brl(l.valor)}</span>`])), 'Nenhum lançamento neste mês.'));
@@ -1676,9 +1728,11 @@ const catsDe = (P, tp) => (P.cats || []).filter(c => c.tipo === tp);
 function pessoalHTML(s) {
   const P = s.pes, mes = P.mes;
   const head = `<div class="ph"><div><div class="ctx">Só Luiz e Eliana veem esta área. O gerente não tem acesso, nem aos dados.</div><h1>Pessoal</h1></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="pesNovo" data-t="entrada">+ Nova entrada</button><button class="btn pri" data-act="pesNovo" data-t="gasto">+ Novo gasto</button></div></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${P.filtro === 'contas' ? '<button class="btn pri" data-act="contaNova">+ Nova conta</button>' : '<button class="btn" data-act="pesNovo" data-t="entrada">+ Nova entrada</button><button class="btn pri" data-act="pesNovo" data-t="gasto">+ Novo gasto</button>'}</div></div>`;
   const erro = P.erro ? `<div class="alert err on noprint" role="alert">${esc(P.erro)} <button class="btn ghost" data-act="pesRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
-  const nav = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Filtro"><button class="chip ${P.filtro === 'todos' ? 'on' : ''}" data-act="pesFiltro" data-f="todos">Tudo</button><button class="chip ${P.filtro === 'gasto' ? 'on' : ''}" data-act="pesFiltro" data-f="gasto">Gastos</button><button class="chip ${P.filtro === 'entrada' ? 'on' : ''}" data-act="pesFiltro" data-f="entrada">Entradas</button></div>
+  const chipsPes = `<div class="chips" role="group" aria-label="Filtro"><button class="chip ${P.filtro === 'todos' ? 'on' : ''}" data-act="pesFiltro" data-f="todos">Tudo</button><button class="chip ${P.filtro === 'gasto' ? 'on' : ''}" data-act="pesFiltro" data-f="gasto">Gastos</button><button class="chip ${P.filtro === 'entrada' ? 'on' : ''}" data-act="pesFiltro" data-f="entrada">Entradas</button><button class="chip ${P.filtro === 'contas' ? 'on' : ''}" data-act="pesFiltro" data-f="contas">Contas a pagar</button></div>`;
+  if (P.filtro === 'contas') return head + `<div class="stack"><div class="tabs2 noprint">${chipsPes}</div>${contasHTML(s, true)}</div>`;
+  const nav = `<div class="tabs2 noprint">${chipsPes}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-act="pesCats">Categorias</button><button class="btn" data-act="pesPdf">Baixar PDF</button>
     <div class="mes" role="group" aria-label="Mês"><button data-act="pmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="pmes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div></div></div>`;
   if (P.cats === null || P.chave !== mes || !P.lista) return head + erro + `<div class="stack">${nav}<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
@@ -2011,7 +2065,7 @@ async function aposPagina(id, s) {
   if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
-  if (id === 'pessoal') { carregarPes(); return; }
+  if (id === 'pessoal') { carregarPes(); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
   if (id === 'equipe') {
     const box = $('#equipeLista'); if (!box) return;
     try {
@@ -2045,7 +2099,7 @@ function render() {
     const id = rotas.some(r => r.id === s.rota) || ROTAS_EXTRAS[s.rota] ? s.rota : 'painel';
     aposPagina(id, s);
     if (s.boletos.lista === null) carregarBoletos();
-    if (s.contas.defs === null) carregarContas();
+    if (s.contas.defs === null) carregarContas(false, 'contas');
     if (s.free.lista === null) carregarFree();
     if (s.tar.lista === null) carregarTar();
   }
@@ -2087,30 +2141,30 @@ const acoes = {
   recarregarPainel() { Store.set({ painel:{ ...Store.s.painel, dados:null, chave:null, erro:null } }); },
   abaConta(el) { Store.set({ boletos:{ ...Store.s.boletos, aba:el.dataset.a } }); },
   contaNova() { abrirModal('Nova conta agendada', formConta(null)); },
-  contaEditar(el) { const c = Store.s.contas.defs.find(x => x.id === el.dataset.id); if (c) abrirModal('Editar conta agendada', formConta(c)); },
-  contasRecarregar() { Store.set({ contas:{ ...Store.s.contas, defs:null, erro:null } }); },
-  cmes(el) { const C = Store.s.contas, m = mesAdd(C.mes, Number(el.dataset.d)); if (m > mesAdd(mesAtual(), 12)) return; Store.set({ contas:{ ...C, mes:m } }); },
-  contaPagar(el) { const C = Store.s.contas, oc = ocorrencias(C.defs, C.pag, el.dataset.m).find(x => x.contaId === el.dataset.c); if (oc) abrirModal('Marcar como paga', formContaPag(oc)); },
+  contaEditar(el) { const c = Store.s[kC()].defs.find(x => x.id === el.dataset.id); if (c) abrirModal('Editar conta agendada', formConta(c)); },
+  contasRecarregar() { Store.set({ [kC()]:{ ...Store.s[kC()], defs:null, erro:null } }); },
+  cmes(el) { const C = Store.s[kC()], m = mesAdd(C.mes, Number(el.dataset.d)); if (m > mesAdd(mesAtual(), 12)) return; Store.set({ [kC()]:{ ...C, mes:m } }); },
+  contaPagar(el) { const C = Store.s[kC()], oc = ocorrencias(C.defs, C.pag, el.dataset.m).find(x => x.contaId === el.dataset.c); if (oc) abrirModal('Marcar como paga', formContaPag(oc)); },
   async contaDesfazer(el) {
-    const C = Store.s.contas, id = el.dataset.c + '_' + el.dataset.m;
+    const C = Store.s[kC()], id = el.dataset.c + '_' + el.dataset.m;
     try {
       await colContasPag().doc(id).set({ contaId:el.dataset.c, mes:el.dataset.m, pago:false, pagoEm:null, por:Store.s.user.uid }, { merge:true });
-      Store.set({ contas:{ ...C, pag:{ ...C.pag, [id]:{ ...(C.pag[id] || { id }), pago:false, pagoEm:null } }, erro:null } });
-    } catch (e) { Store.set({ contas:{ ...C, erro:'Não foi possível desfazer. ' + msgErro(e) } }); }
+      Store.set({ [kC()]:{ ...C, pag:{ ...C.pag, [id]:{ ...(C.pag[id] || { id }), pago:false, pagoEm:null } }, erro:null } });
+    } catch (e) { Store.set({ [kC()]:{ ...C, erro:'Não foi possível desfazer. ' + msgErro(e) } }); }
   },
   contaApagar(el) {
-    const c = Store.s.contas.defs.find(x => x.id === el.dataset.id); if (!c) return;
+    const c = Store.s[kC()].defs.find(x => x.id === el.dataset.id); if (!c) return;
     abrirModal('Apagar conta', `<p style="font-size:14px;margin-bottom:16px">Apagar <b style="color:var(--t1)">${esc(c.descricao)}</b> e todo o histórico de pagamentos dela? Isso não dá para desfazer. Para só parar de repetir, use "Encerrada" em Editar.</p>
       <div class="acoes"><button class="btn bad full" data-act="contaApagarOk" data-id="${esc(c.id)}">Apagar conta</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
   },
   async contaApagarOk(el) {
-    const id = el.dataset.id, C = Store.s.contas;
+    const id = el.dataset.id, C = Store.s[kC()];
     try {
       const snap = await colContasPag().where('contaId', '==', id).get();
       const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); b.delete(colContas().doc(id)); await b.commit();
       const pag = { ...C.pag }; snap.docs.forEach(d => { delete pag[d.id]; });
-      fecharModal(); Store.set({ contas:{ ...C, defs:C.defs.filter(x => x.id !== id), pag, erro:null } });
-    } catch (e) { fecharModal(); Store.set({ contas:{ ...C, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+      fecharModal(); Store.set({ [kC()]:{ ...C, defs:C.defs.filter(x => x.id !== id), pag, erro:null } });
+    } catch (e) { fecharModal(); Store.set({ [kC()]:{ ...C, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
   boletoNovo() { abrirModal('Novo boleto', formBoleto(null)); },
   boletoEditar(el) { const b = Store.s.boletos.lista.find(x => x.id === el.dataset.id); if (b) abrirModal('Editar boleto', formBoleto(b)); },
