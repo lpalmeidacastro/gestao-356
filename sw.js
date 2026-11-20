@@ -1,6 +1,6 @@
 // gestao-356 · service worker · v5
 // Guarda só o "esqueleto" do app (arquivos do próprio site). Firebase e fontes passam direto pela rede.
-const VERSAO = 'g356-v14';
+const VERSAO = 'g356-v15';
 const ARQUIVOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
 
 self.addEventListener('install', e => {
@@ -29,4 +29,24 @@ self.addEventListener('fetch', e => {
       })
       .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
   );
+});
+
+// avisos das 9h (mensagem só de dados, enviada pelo agendador do GitHub via FCM)
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = {}; }
+  const m = d.data || d.notification || d;
+  const titulo = m.titulo || m.title || 'Gestão 356';
+  e.waitUntil(self.registration.showNotification(titulo, {
+    body: m.corpo || m.body || '', icon: './icon-192.png', badge: './icon-192.png', tag: 'g356-9h', renotify: true, data: { url: './#/boletos' }
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(self.clients.matchAll({ type:'window', includeUncontrolled:true }).then(cs => {
+    const c = cs.find(x => x.url.includes('gestao-356'));
+    if (c) { c.navigate(url); return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

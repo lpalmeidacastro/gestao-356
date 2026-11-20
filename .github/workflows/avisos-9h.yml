@@ -1,0 +1,25 @@
+# Aviso diário das 9h (Brasília): contas agendadas e boletos que vencem no dia.
+# 9h em Brasília = 12h UTC. O GitHub pode atrasar alguns minutos.
+name: Avisos das 9h
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: 'Enviar aviso de teste mesmo sem vencimentos hoje (true/false)'
+        default: 'false'
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-audit --no-fund firebase-admin@12
+      - run: node scripts/avisos.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TESTE: ${{ github.event.inputs.teste }}

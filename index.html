@@ -75,6 +75,8 @@ svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .tema button[aria-pressed=true]{background:var(--card);color:var(--t1);font-weight:590;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 .temabox{padding:16px 12px 0;display:flex;flex-direction:column;gap:8px}
 .temabox>span{font-size:12px;color:var(--t3)}
+.avisos{display:flex;flex-direction:column;gap:8px;padding:12px 12px 0}
+.avisos p{font-size:12px;color:var(--t3);line-height:1.4}
 
 /* botões */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line2);background:var(--btnbg);color:var(--t1);font-weight:510;font-size:14px;cursor:pointer;transition:filter .2s var(--ease),transform .2s var(--ease),background-color .2s var(--ease)}
@@ -395,6 +397,7 @@ input[type=date]{color-scheme:dark}
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js"></script>
 <script>
 'use strict';
 /* ============ config ============ */
@@ -475,6 +478,32 @@ function aplicarTema() {
   const t = document.querySelector('meta[name=theme-color]'); if (t) t.setAttribute('content', c ? '#f4eee2' : '#0a0a0c');
 }
 try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (temaAtual() === 'auto') aplicarTema(); }); } catch (e) {}
+/* ===== avisos das 9h (notificação no aparelho) ===== */
+const VAPID = 'BDb8hbX307nFx3XRtCvvgpeLH9RlJKWHidhEO7OxvW2A281Hau8SlzT_xbyhgxydSYrq5rMRaK8l3ptHDIjScog';
+const avisosOk = () => 'Notification' in window && 'serviceWorker' in navigator && window.firebase && firebase.messaging && firebase.messaging.isSupported();
+const avisosOn = () => { try { return Notification.permission === 'granted' && localStorage.getItem('g356-avisos') === '1'; } catch (e) { return false; } };
+const hashTk = t => { let a = 5381, b = 52711; for (let i = 0; i < t.length; i++) { a = (a * 33) ^ t.charCodeAt(i); b = (b * 33) ^ t.charCodeAt(i); } return (a >>> 0).toString(36) + (b >>> 0).toString(36); };
+function avisosBox() {
+  let msg, btn = '';
+  if (!('Notification' in window)) msg = 'Este aparelho não aceita avisos. No iPhone, instale o app na tela inicial primeiro.';
+  else if (Notification.permission === 'denied') msg = 'Avisos bloqueados neste aparelho. Libere nas configurações do navegador para este site.';
+  else if (avisosOn()) msg = 'Ativados. Todo dia às 9h você recebe as contas e boletos que vencem no dia.';
+  else { msg = 'Receba às 9h um aviso com as contas e boletos que vencem no dia.'; btn = `<button class="btn" data-act="avisosAtivar">Ativar avisos neste aparelho</button>`; }
+  return `<div class="avisos"><span style="font-size:12px;color:var(--t3)">Avisos das 9h</span><p>${msg}</p>${btn}</div>`;
+}
+async function ativarAvisos() {
+  if (!avisosOk()) return aviso('Este navegador não aceita avisos. No iPhone, instale o app na tela inicial e abra por lá.');
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { Store.set({}); return aviso('Sem a permissão do navegador não dá para avisar. Libere as notificações e tente de novo.'); }
+    const reg = await navigator.serviceWorker.ready;
+    const token = await firebase.messaging().getToken({ vapidKey:VAPID, serviceWorkerRegistration:reg });
+    if (!token) throw new Error('sem token');
+    await db.doc(`empresas/${EMPRESA}/aparelhos/${hashTk(token)}`).set({ token, uid:Store.s.user.uid, ativoEm:TS(), nav:(navigator.userAgent || '').slice(0, 90) }, { merge:true });
+    try { localStorage.setItem('g356-avisos', '1'); } catch (e) {}
+    Store.set({}); aviso('Avisos ativados neste aparelho.', 'ok');
+  } catch (e) { console.error(e); aviso('Não consegui ativar os avisos. ' + msgErro(e)); }
+}
 const Store = {
   s: { fase:'carregando', user:null, perfil:null, rota:'painel', online:navigator.onLine,
        painel:{ mes:mesAtual(), metrica:'vendas', dados:null, chave:null, erro:null },
@@ -1828,6 +1857,7 @@ V.app = s => {
   <aside class="side">
     <a class="brand" href="#/painel" aria-label="356 Gestão, início">${logo()}</a>
     <nav class="nav" aria-label="Principal">${nav}</nav>
+    ${avisosBox()}
     <div class="temabox"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div>
     <div class="me">
       <span class="av" aria-hidden="true">${esc(iniciais(s))}</span>
@@ -1954,6 +1984,7 @@ function page(id, s, nomeCurto) {
     const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','equipe','diag'].includes(r.id));
     return cab('Mais') + `<div class="box"><div class="lista">${rotas.map(r => `<a href="#/${r.id}">${ico(r.ic)}${esc(r.nome)}</a>`).join('')}
       <a href="#/mais" data-act="sair">${ico('sair')}Sair</a></div></div>
+      <div class="box" style="margin-top:16px">${avisosBox()}</div>
       <div class="box" style="margin-top:16px"><div class="temabox" style="padding:0"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div></div>`;
   }
   const set = SETORES.find(x => x.id === id);
@@ -2036,6 +2067,7 @@ function aviso(msg, tipo = 'err') {
   a.className = 'alert on ' + tipo; a.textContent = msg;
 }
 const acoes = {
+  avisosAtivar() { ativarAvisos(); },
   tema(el) { try { localStorage.setItem('g356-tema', el.dataset.v); } catch (e) {} aplicarTema(); document.querySelectorAll('.tema button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === el.dataset.v))); },
   modo(el) { modoLogin = el.dataset.modo; render(); },
   async esqueci() {
