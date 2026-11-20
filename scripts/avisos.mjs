@@ -5,8 +5,11 @@ const admin = require('firebase-admin');
 
 const EMPRESA = '356';
 const bruto = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (!bruto) { console.error('Falta o segredo FIREBASE_SERVICE_ACCOUNT.'); process.exit(1); }
-admin.initializeApp({ credential: admin.credential.cert(JSON.parse(bruto)) });
+const nota = (t, m) => console.log(`::${t} title=Avisos das 9h::${String(m).replace(/[\r\n]+/g, ' ').slice(0, 400)}`);
+process.on('unhandledRejection', e => { nota('error', 'Erro: ' + (e && (e.code || '') + ' ' + (e && e.message))); process.exit(1); });
+if (!bruto) { nota('error', 'Falta o segredo FIREBASE_SERVICE_ACCOUNT no GitHub.'); process.exit(1); }
+let cred; try { cred = JSON.parse(bruto); } catch (e) { nota('error', 'O segredo não é um JSON válido (cole o arquivo inteiro).'); process.exit(1); }
+admin.initializeApp({ credential: admin.credential.cert(cred) });
 const db = admin.firestore();
 
 const pad = n => String(n).padStart(2, '0');
@@ -38,7 +41,7 @@ defs.docs.forEach(d => {
 });
 
 const teste = process.env.TESTE === 'true';
-if (!itens.length && !teste) { console.log(`Nada vence em ${hoje}. Nenhum aviso enviado.`); process.exit(0); }
+if (!itens.length && !teste) { nota('notice', `Nada vence em ${hoje}. Nenhum aviso enviado.`); process.exit(0); }
 
 const total = itens.reduce((s, x) => s + (Number(x.valor) || 0), 0);
 const titulo = itens.length ? `Vence hoje: ${itens.length} ${itens.length === 1 ? 'conta' : 'contas'} (${brl(total)})` : 'Gestão 356: teste do aviso das 9h';
@@ -46,10 +49,10 @@ const corpo = itens.length ? itens.slice(0, 5).map(x => `${x.nome} ${brl(x.valor
 
 const aps = await db.collection(`empresas/${EMPRESA}/aparelhos`).get();
 const tokens = aps.docs.map(d => d.data().token).filter(Boolean);
-if (!tokens.length) { console.log('Nenhum aparelho com avisos ativados.'); process.exit(0); }
+if (!tokens.length) { nota('warning', 'Nenhum aparelho com avisos ativados ainda.'); process.exit(0); }
 
 const r = await admin.messaging().sendEachForMulticast({ tokens, data:{ titulo, corpo }, webpush:{ headers:{ Urgency:'high', TTL:'3600' } } });
-console.log(`Enviados: ${r.successCount} ok, ${r.failureCount} falhas. Itens: ${itens.length}.`);
+nota('notice', `Enviados: ${r.successCount} ok, ${r.failureCount} falhas. Itens: ${itens.length}. Aparelhos: ${tokens.length}.` + (r.failureCount ? ' Erro: ' + (r.responses.find(x => !x.success)?.error?.code || '') : ''));
 // remove aparelhos que não existem mais
 const mortos = [];
 r.responses.forEach((x, i) => { if (!x.success && /registration-token-not-registered|invalid-registration-token|invalid-argument/.test(x.error?.code || '')) mortos.push(tokens[i]); });
