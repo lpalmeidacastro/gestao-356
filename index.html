@@ -444,6 +444,7 @@ const ICON = {
   boletos:'<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   freelancers:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 11l2 2 4-4"/>',
   relatorios:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  empresa:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>',
   pessoal:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   equipe:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/>',
   diag:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
@@ -464,8 +465,13 @@ const SETORES = [
   { id:'importados', nome:'Produtos importados' },
   { id:'bebidas',    nome:'Bebidas' },
   { id:'cozinha',    nome:'Cozinha' },
-  { id:'eventos',    nome:'Eventos' }
+  { id:'eventos',    nome:'Eventos' },
+  { id:'fornecedores', nome:'Fornecedores', forn:true }
 ];
+/* subsetores da Empresa: a lista abaixo é o padrão; depois de carregar, vale a de empresas/356/subsetores */
+const SETORES_PADRAO = SETORES.map(x => ({ ...x }));
+const NOMES = {}; SETORES.forEach(x => { NOMES[x.id] = x.nome; });
+const ID_FORN = 'fornecedores';
 
 /* ============ Store ============ */
 const TEMAS = [['claro','Claro'],['escuro','Escuro'],['auto','Auto']];
@@ -511,7 +517,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -555,8 +561,8 @@ async function iniciar(u) {
       snap = await ref.get();
     }
     if (!snap.exists) { Store.set({ user:u, perfil:null, fase:'semacesso' }); return; }
-    const rota = (location.hash.replace('#/', '') || 'painel');
-    Store.set({ user:u, perfil:snap.data(), fase:'app', rota });
+    const rh = rotaDeHash();
+    Store.set({ user:u, perfil:snap.data(), fase:'app', rota:rh.rota, emp:{ ...Store.s.emp, sub:rh.sub || Store.s.emp.sub } });
   } catch (e) {
     console.error(e);
     Store.set({ user:u, perfil:null, fase:'erro', erro:msgErro(e) });
@@ -697,8 +703,8 @@ async function carregarPainel() {
 // empresas/356/boletos/{id}: descricao, setor (importados|bebidas|cozinha|eventos|geral), vencimento 'AAAA-MM-DD',
 //   valor (número), pago (bool), pagoEm 'AAAA-MM-DD'|null, temComprovante (bool), criadoPorUid, criadoEm
 // empresas/356/comprovantes/{boletoId}: dataUrl (foto comprimida), em, por  (separado para a lista não carregar fotos)
-const SETORES_B = SETORES.concat([{ id:'geral', nome:'Geral' }]);
-const nomeSetor = id => (SETORES_B.find(x => x.id === id) || { nome:'—' }).nome;
+const setoresB = () => SETORES.concat([{ id:'geral', nome:'Geral' }]);
+const nomeSetor = id => id === 'geral' ? 'Geral' : (NOMES[id] || '—');
 const hojeStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
 const diasAte = iso => { const [y, m, d] = iso.split('-').map(Number), [a, b, c] = hojeStr().split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(a, b - 1, c)) / 864e5); };
 const dataBR = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
@@ -746,6 +752,116 @@ const somaB = a => a.reduce((s, b) => s + (Number(b.valor) || 0), 0);
 const nBol = n => n + (n === 1 ? ' boleto' : ' boletos');
 const badgeSit = s => `<span class="badge ${s === 'pago' ? 'ok' : s === 'vencido' ? 'err' : 'warn'}">${s === 'pago' ? 'Pago' : s === 'vencido' ? 'Vencido' : 'A vencer'}</span>`;
 const vencidosCount = s => (s.boletos.lista ? s.boletos.lista.filter(b => sitBoleto(b) === 'vencido').length : 0) + contasPseudo(s).filter(b => sitBoleto(b) === 'vencido').length;
+
+/* ============ subsetores e fornecedores (empresa) ============ */
+// empresas/356/subsetores/{id}: nome, ordem, fixo (bool), criadoPorUid, criadoEm. Os 4 setores antigos mantêm o mesmo id (importados, bebidas, cozinha, eventos).
+// empresas/356/fornecedores/{id}: nome, criadoPorUid, criadoEm. Custos do subsetor "fornecedores" guardam fornecedorId e fornecedorNome.
+const colSub = () => db.collection(`empresas/${EMPRESA}/subsetores`);
+const colForn = () => db.collection(`empresas/${EMPRESA}/fornecedores`);
+let subBusca = false, fornBusca = false;
+function aplicarSubs(docs) {
+  docs.forEach(x => { NOMES[x.id] = x.nome; });
+  SETORES.length = 0;
+  docs.forEach(x => SETORES.push({ id:x.id, nome:x.nome, forn:x.id === ID_FORN }));
+}
+async function carregarSubs(forcar) {
+  if (subBusca || (Store.s.subset.ok && !forcar)) return;
+  subBusca = true;
+  try {
+    let q = await colSub().get();
+    if (!q.docs.length && Store.s.perfil && Store.s.perfil.papel === 'admin') {
+      const b = db.batch();
+      SETORES_PADRAO.forEach((x, i) => b.set(colSub().doc(x.id), { nome:x.nome, ordem:i + 1, fixo:!!x.forn, criadoPorUid:Store.s.user.uid, criadoEm:TS() }));
+      await b.commit(); q = await colSub().get();
+    }
+    const docs = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    if (docs.length) aplicarSubs(docs);
+    Store.set({ subset:{ ok:true, erro:null } });
+  } catch (e) { console.error(e); Store.set({ subset:{ ok:true, erro:'Não foi possível carregar os subsetores. ' + msgErro(e) } }); }
+  finally { subBusca = false; }
+}
+async function carregarForn(forcar) {
+  if (fornBusca || (Store.s.forn.lista && !forcar)) return;
+  fornBusca = true;
+  try {
+    const q = await colForn().get();
+    const lista = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    Store.set({ forn:{ lista, erro:null } });
+  } catch (e) { console.error(e); Store.set({ forn:{ lista:Store.s.forn.lista || [], erro:'Não foi possível carregar os fornecedores. ' + msgErro(e) } }); }
+  finally { fornBusca = false; }
+}
+const subAtualId = () => (Store.s.rota === 'empresa' && Store.s.emp.sub !== 'todos' && SETORES.some(x => x.id === Store.s.emp.sub)) ? Store.s.emp.sub : null;
+const nomeIgual = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+function subsModalHTML() {
+  const rows = SETORES.map(x => `<form data-form="subsetRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
+      <input name="nome" value="${esc(x.nome)}" maxlength="40" aria-label="Nome do subsetor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button></form>`).join('');
+  return `<p class="muted" style="font-size:13px">Os subsetores dividem a Empresa. Lançamentos, estoque, tarefas, contas e freelancers usam esta lista. O subsetor "Fornecedores" tem cadastro próprio de fornecedores.</p>
+    <div class="alert" role="alert" id="subAlert"></div>${rows}
+    <form data-form="subset" novalidate style="margin-top:16px"><div class="alert" role="alert"></div>
+      <label class="f"><span>Novo subsetor</span><input name="nome" maxlength="40" placeholder="Ex.: Manutenção, Marketing" autocomplete="off"></label>
+      <div class="acoes"><button class="btn pri full" type="submit">Adicionar subsetor</button></div></form>`;
+}
+function fornModalHTML() {
+  const L = Store.s.forn.lista || [];
+  const rows = L.map(x => `<form data-form="fornRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
+      <input name="nome" value="${esc(x.nome)}" maxlength="80" aria-label="Nome do fornecedor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button></form>`).join('');
+  return `<p class="muted" style="font-size:13px">Cadastre aqui quem vende para a 356. Ao lançar um custo no subsetor Fornecedores, você escolhe o fornecedor nesta lista.</p>
+    <div class="alert" role="alert" id="fornAlert"></div>${rows || '<p class="muted" style="font-size:14px;margin:12px 0">Nenhum fornecedor ainda.</p>'}
+    <form data-form="forn" novalidate style="margin-top:16px"><div class="alert" role="alert"></div>
+      <label class="f"><span>Novo fornecedor</span><input name="nome" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
+      <div class="acoes"><button class="btn pri full" type="submit">Adicionar fornecedor</button></div></form>`;
+}
+async function salvarSubset(f, d) {
+  const av = f.querySelector('.alert'), erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const nome = (d.nome || '').trim();
+  if (nome.length < 2) return erro('Digite o nome do subsetor. Exemplo: Manutenção');
+  if (SETORES.some(x => nomeIgual(x.nome, nome))) return erro('Já existe um subsetor com esse nome.');
+  try {
+    const ordem = SETORES.length + 1, ref = colSub().doc();
+    await ref.set({ nome, ordem, fixo:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+    SETORES.push({ id:ref.id, nome, forn:false }); NOMES[ref.id] = nome;
+    invalidarPainel(); Store.set({ subset:{ ok:true, erro:null } }); abrirModal('Subsetores', subsModalHTML());
+  } catch (e) { erro(msgErro(e)); }
+}
+async function renomearSubset(f, d) {
+  const nome = (d.nome || '').trim(), id = f.dataset.id, av = $('#subAlert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  if (nome.length < 2) return erro('O nome precisa ter pelo menos 2 letras.');
+  if (SETORES.some(x => x.id !== id && nomeIgual(x.nome, nome))) return erro('Já existe um subsetor com esse nome.');
+  try {
+    await colSub().doc(id).update({ nome });
+    const x = SETORES.find(y => y.id === id); if (x) x.nome = nome; NOMES[id] = nome;
+    invalidarPainel(); Store.set({ subset:{ ok:true, erro:null } }); abrirModal('Subsetores', subsModalHTML());
+  } catch (e) { erro(msgErro(e)); }
+}
+async function criarFornecedor(nome) {
+  const L = Store.s.forn.lista || [], ja = L.find(x => nomeIgual(x.nome, nome));
+  if (ja) return ja;
+  const ref = colForn().doc(), novo = { nome, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+  await ref.set(novo);
+  const item = { id:ref.id, nome, criadoPorUid:novo.criadoPorUid };
+  Store.s.forn = { lista:L.concat([item]).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), erro:null };
+  return item;
+}
+async function salvarForn(f, d) {
+  const av = f.querySelector('.alert'), erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const nome = (d.nome || '').trim();
+  if (nome.length < 2) return erro('Digite o nome do fornecedor.');
+  if ((Store.s.forn.lista || []).some(x => nomeIgual(x.nome, nome))) return erro('Esse fornecedor já está cadastrado.');
+  try { await criarFornecedor(nome); Store.set({ forn:Store.s.forn }); abrirModal('Fornecedores', fornModalHTML()); }
+  catch (e) { erro(msgErro(e)); }
+}
+async function renomearForn(f, d) {
+  const nome = (d.nome || '').trim(), id = f.dataset.id, av = $('#fornAlert'), L = Store.s.forn.lista || [];
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  if (nome.length < 2) return erro('O nome precisa ter pelo menos 2 letras.');
+  if (L.some(x => x.id !== id && nomeIgual(x.nome, nome))) return erro('Já existe um fornecedor com esse nome.');
+  try {
+    await colForn().doc(id).update({ nome });
+    Store.set({ forn:{ lista:L.map(x => x.id === id ? { ...x, nome } : x).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), erro:null } });
+    abrirModal('Fornecedores', fornModalHTML());
+  } catch (e) { erro(msgErro(e)); }
+}
 
 /* ============ contas agendadas (únicas ou recorrentes) ============ */
 const ehPes = () => Store.s.rota === 'pessoal';
@@ -879,7 +995,7 @@ function formConta(c) {
   return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
-    ${ehPes() ? '' : `<label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`}
+    ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`}
     <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
     <div data-so="rec" ${rec ? '' : 'class="hide"'}>
       <label class="f"><span>Dia do vencimento (1 a 31)</span><input name="dia" type="number" min="1" max="31" inputmode="numeric" value="${c && c.dia ? esc(c.dia) : ''}" placeholder="Ex.: 10"></label>
@@ -899,7 +1015,7 @@ async function salvarConta(f, d) {
   const desc = (d.descricao || '').trim(), valor = parseValor(d.valor), rec = d.tipo !== 'uma';
   if (!desc) return erro('Escreva que conta é.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
-  if (!ehPes() && !SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!ehPes() && !setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
   const base = { descricao:desc, setor:ehPes() ? 'pessoal' : d.setor, valor, recorrente:rec };
   if (rec) {
     const dia = Number(d.dia);
@@ -1017,7 +1133,7 @@ function formBoleto(b) {
   return `<form data-form="boleto" data-id="${b ? esc(b.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
     <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${b ? esc(b.vencimento) : hojeStr()}"></label>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${b ? 'Salvar alterações' : 'Salvar boleto'}</button>
@@ -1030,7 +1146,7 @@ async function salvarBoleto(f, d) {
   if (!desc) return erro('Escreva o que é o boleto.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) return erro('Escolha a data de vencimento.');
-  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
   btn.disabled = true;
   try {
     const B = Store.s.boletos, id = f.dataset.id;
@@ -1200,7 +1316,7 @@ function formFree(f) {
     <div class="alert" role="alert"></div>
     <label class="f"><span>Nome</span><input name="nome" value="${f ? esc(f.nome) : ''}" maxlength="80" placeholder="Ex.: Carlos Henrique" autocomplete="off"></label>
     <label class="f"><span>Função</span><input name="funcao" value="${f ? esc(f.funcao || '') : ''}" maxlength="60" placeholder="Ex.: Garçom, Churrasqueiro" autocomplete="off"></label>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES_B.map(x => `<option value="${x.id}" ${f && f.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${f && f.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
     <label class="f"><span>Valor combinado por dia (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="150,00" autocomplete="off"></label>
     ${f ? `<label class="f"><span>Situação</span><select name="ativo"><option value="1" ${f.ativo !== false ? 'selected' : ''}>Ativo (aparece na lista de presença)</option><option value="0" ${f.ativo === false ? 'selected' : ''}>Inativo (some da lista, mantém o histórico)</option></select></label>` : ''}
     <div class="acoes"><button class="btn pri full" type="submit">${f ? 'Salvar alterações' : 'Salvar freelancer'}</button></div></form>`;
@@ -1211,7 +1327,7 @@ async function salvarFree(f, d) {
   const nome = (d.nome || '').trim(), valor = parseValor(d.valor);
   if (!nome) return erro('Escreva o nome do freelancer.');
   if (!(valor > 0)) return erro('Digite o valor combinado por dia, maior que zero. Exemplo: 150,00');
-  if (!SETORES_B.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
   btn.disabled = true;
   try {
     const F = Store.s.free, id = f.dataset.id;
@@ -1241,7 +1357,7 @@ const colProd = () => db.collection(`empresas/${EMPRESA}/produtos`);
 const CAT_VENDA = ['Balcão', 'Delivery', 'Evento', 'Online', 'Outras vendas'];
 const CAT_CUSTO = ['Mercadoria', 'Freelancers e folha', 'Aluguel', 'Energia', 'Impostos e taxas', 'Manutenção', 'Marketing', 'Outros custos'];
 const UNIDADES = ['un', 'kg', 'L', 'cx', 'pct'];
-const nomeSetor4 = id => (SETORES.find(x => x.id === id) || { nome:'—' }).nome;
+const nomeSetor4 = id => nomeSetor(id);
 function invalidarPainel() { Store.s.painel = { ...Store.s.painel, dados:null, chave:null }; }
 let lancBusca = null;
 async function carregarLanc() {
@@ -1271,10 +1387,14 @@ function sitEstoque(p) { const q = Number(p.qtd) || 0, m = Number(p.minimo) || 0
 const fmtQtd = n => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits:2 });
 
 function setorHTML(s, set) {
-  const L = s.lanc, E = s.estoque, tab = L.tab;
-  const head = `<div class="ph"><div><div class="ctx">Setor da empresa · visível para Luiz, Eliana e gerente</div><h1>${esc(set.nome)}</h1></div>
-    <button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${set.id}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div>`;
-  const tabs = `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
+  const L = s.lanc, E = s.estoque, tab = L.tab, todos = set.id === 'todos';
+  const selS = x => todos || x.setor === set.id;
+  const chipSub = (id, nome) => `<button class="chip ${set.id === id ? 'on' : ''}" data-act="empSub" data-s="${esc(id)}">${esc(nome)}</button>`;
+  const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${set.forn ? '<button class="btn" data-act="fornManage">Fornecedores</button>' : ''}<button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
+  const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
+    <button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div>`;
+  const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
     ${tab === 'lanc' ? `<div class="mes" role="group" aria-label="Mês"><button data-act="lmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(L.mes, false))}</span><button data-act="lmes" data-d="1" aria-label="Próximo mês" ${L.mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>` : ''}</div>`;
   const sk = `<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div>`;
   const cardE = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
@@ -1282,7 +1402,7 @@ function setorHTML(s, set) {
   if (tab === 'estoque') {
     const erro = E.erro ? `<div class="alert err on" role="alert">${esc(E.erro)} <button class="btn ghost" data-act="estRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
     if (E.lista === null) return head + `<div class="stack">${tabs}${sk}</div>`;
-    const ps = E.lista.filter(x => x.setor === set.id);
+    const ps = E.lista.filter(selS);
     const baixos = ps.filter(x => sitEstoque(x) !== 'ok'), valor = ps.reduce((a, x) => a + (Number(x.qtd) || 0) * (Number(x.custoUn) || 0), 0);
     const cards = `<div class="rcards">${cardE('var(--pur)', 'Produtos', ps.length, 'cadastrados neste setor')}${cardE('var(--warn)', 'Abaixo do mínimo', baixos.length, 'precisam de reposição')}${cardE('var(--ok)', 'Valor em estoque', brl(valor), 'qtd × custo unitário')}</div>`;
     const rows = ps.map(x => {
@@ -1301,16 +1421,18 @@ function setorHTML(s, set) {
   }
   const erro = L.erro ? `<div class="alert err on" role="alert">${esc(L.erro)} <button class="btn ghost" data-act="lancRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
   if (L.chave !== L.mes || !L.lista) return head + erro + `<div class="stack">${tabs}${sk}</div>`;
-  const ls = L.lista.filter(x => x.setor === set.id).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  const ls = L.lista.filter(selS).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   const v = ls.filter(x => x.tipo === 'venda').reduce((a, x) => a + (Number(x.valor) || 0), 0), c = ls.filter(x => x.tipo === 'custo').reduce((a, x) => a + (Number(x.valor) || 0), 0);
   const res = v - c;
   const cards = `<div class="rcards">${cardE('var(--ok)', 'Vendas', brl(v), nBolL(ls.filter(x => x.tipo === 'venda').length))}${cardE('var(--err)', 'Custos', brl(c), nBolL(ls.filter(x => x.tipo === 'custo').length))}${cardE('var(--pur)', 'Resultado', brl(res), res >= 0 ? 'vendas menos custos' : 'no vermelho')}${cardE('var(--warn)', 'Margem', v > 0 ? pct(res / v) : '—', v > 0 ? 'resultado ÷ vendas' : 'sem vendas no mês')}</div>`;
   const rows = ls.map(x => `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}</span></div>
+      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${[todos ? nomeSetor(x.setor) : '', x.fornecedorNome || '', x.categoria || ''].filter(Boolean).map(esc).join(' · ')}</span></div>
       <div class="bven">${dataBR(x.data)}</div><div class="bval">${brl(x.valor)}</div><div class="bst">${badgeTipo(x.tipo)}</div>
       <div class="bact"><button class="ib ${x.temComprovante ? 'tem' : ''}" data-act="lcComprovante" data-id="${esc(x.id)}" aria-label="${x.temComprovante ? 'Ver foto da nota' : 'Anexar foto da nota'}">${ico('camera')}</button>
         <button class="ib" data-act="lancEditar" data-id="${esc(x.id)}" aria-label="Editar lançamento">${ico('edit')}</button></div></div>`).join('');
-  return head + erro + `<div class="stack">${tabs}${metaCard(set, L.mes, v)}${cards}
+  const porForn = set.forn ? Object.entries(ls.filter(x => x.tipo === 'custo').reduce((o, x) => { const n = x.fornecedorNome || 'Sem fornecedor'; o[n] = (o[n] || 0) + (Number(x.valor) || 0); return o; }, {})).sort((a, b) => b[1] - a[1]) : [];
+  const fornPainel = set.forn ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Gasto por fornecedor em ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div>${porForn.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th style="text-align:right">Total</th></tr></thead><tbody>${porForn.map(([n, t]) => `<tr><td style="color:var(--t1)">${esc(n)}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${brl(t)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="pb muted" style="font-size:14px">Nenhum custo com fornecedor neste mês.</div>'}</section>` : '';
+  return head + erro + `<div class="stack">${tabs}${todos ? '' : metaCard(set, L.mes, v)}${cards}${fornPainel}
     <section class="panel" style="margin:0"><div class="ph2"><h3>Lançamentos de ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div><div role="table">
       <div class="brow hd" role="row"><span>Lançamento</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum lançamento deste setor em ${esc(mesNome(L.mes, true).toLowerCase())}. Use "+ Novo lançamento".</div>`}</div></section></div>`;
@@ -1320,11 +1442,17 @@ const nBolL = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
 function formLanc(l, setorPadrao, tipoPadrao) {
   const tipo = l ? l.tipo : (tipoPadrao || 'venda'), admin = Store.s.perfil.papel === 'admin';
   const setor = l ? l.setor : (setorPadrao || SETORES[0].id);
+  const FL = (Store.s.forn.lista || []), semForn = !FL.length;
+  const optsForn = FL.map(x => `<option value="${esc(x.id)}" ${l && l.fornecedorId === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
   const cats = tp => (tp === 'venda' ? CAT_VENDA : CAT_CUSTO).map(c => `<option ${l && l.categoria === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <div class="f"><span>Tipo</span><div class="seg" role="group" aria-label="Tipo" id="tipoSeg"><button type="button" class="${tipo === 'venda' ? 'on' : ''}" data-act="lancTipo" data-t="venda">Venda</button><button type="button" class="${tipo === 'custo' ? 'on' : ''}" data-act="lancTipo" data-t="custo">Custo</button></div><input type="hidden" name="tipo" value="${tipo}"></div>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
+      <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${optsForn}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
+      <label class="f ${semForn ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
+    </div>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
@@ -1341,9 +1469,17 @@ async function salvarLanc(f, d) {
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
+  const precisaForn = d.setor === ID_FORN && d.tipo === 'custo';
+  const novoNome = (d.novoFornecedor || '').trim();
+  if (precisaForn) {
+    if (d.fornecedorId === '__novo') { if (novoNome.length < 2) return erro('Digite o nome do novo fornecedor.'); }
+    else if (!d.fornecedorId || !(Store.s.forn.lista || []).some(x => x.id === d.fornecedorId)) return erro('Escolha o fornecedor ou cadastre um novo.');
+  }
   btn.disabled = true;
   try {
-    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim() };
+    let forn = null;
+    if (precisaForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
+    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
     const L = Store.s.lanc; let ref = id ? colLanc().doc(id) : colLanc().doc(), novo = null;
     if (id) await ref.update(mud);
     else { novo = { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(novo); }
@@ -1351,7 +1487,7 @@ async function salvarLanc(f, d) {
     lista = id ? lista.filter(x => x.id !== id) : lista;
     if (mes === L.mes) lista = lista.concat([{ ...(id ? (L.lista.find(x => x.id === id) || {}) : novo), ...mud, id:ref.id, criadoEm:null }]);
     invalidarPainel(); fecharModal();
-    Store.set({ lanc:{ ...L, lista, erro:null } });
+    Store.set({ lanc:{ ...L, lista, erro:null }, forn:Store.s.forn });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 async function enviarComprovanteLanc(file, cid) {
@@ -1368,7 +1504,7 @@ function formProd(x, setorPadrao) {
   return `<form data-form="produto" data-id="${x ? esc(x.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Produto</span><input name="nome" value="${x ? esc(x.nome) : ''}" maxlength="80" placeholder="Ex.: Saquê Junmai 720 ml" autocomplete="off"></label>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
     <label class="f"><span>Categoria (opcional)</span><input name="categoria" value="${x ? esc(x.categoria || '') : ''}" maxlength="40" placeholder="Ex.: Destilados" autocomplete="off"></label>
     <label class="f"><span>Unidade</span><select name="unidade">${UNIDADES.map(u => `<option ${x && x.unidade === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
     <label class="f"><span>Quantidade em estoque</span><input name="qtd" inputmode="decimal" value="${x ? esc(String(x.qtd).replace('.', ',')) : '0'}" autocomplete="off"></label>
@@ -1420,7 +1556,7 @@ function metaCard(set, mes, vendas) {
   const mesTxt = mesNome(mes, true).toLowerCase();
   if (!M.mapa) return `<div class="box"><div class="skel" style="width:40%"></div></div>`;
   const btn = `<button class="btn" data-act="metaEditar" data-setor="${set.id}" data-mes="${mes}" style="height:44px">${meta > 0 ? 'Editar meta' : 'Definir meta'}</button>`;
-  if (!(meta > 0)) return `<div class="box"><div class="bh" style="margin:0"><div><h2>Meta de vendas</h2><p class="muted" style="font-size:13px;margin-top:4px">Sem meta definida para ${esc(mesTxt)}. Defina quanto este setor quer vender no mês.</p></div>${btn}</div></div>`;
+  if (!(meta > 0)) return `<div class="box"><div class="bh" style="margin:0"><div><h2>Meta de vendas</h2><p class="muted" style="font-size:13px;margin-top:4px">Sem meta definida para ${esc(mesTxt)}. Defina quanto este subsetor quer vender no mês.</p></div>${btn}</div></div>`;
   const prog = Math.min(100, Math.round(vendas / meta * 100)), falta = meta - vendas;
   return `<div class="box"><div class="bh"><h2>Meta de vendas · ${esc(mesTxt)}</h2>${btn}</div>
     <div class="meta"><div class="r"><span>${brl(vendas)} de ${brl(meta)}</span><b>${prog}%</b></div>
@@ -1464,7 +1600,7 @@ const badgeTar = st => ({ atrasada:'<span class="badge err">Atrasada</span>', ho
 function tarefasHTML(set, head, tabs, erroHtml) {
   const T = Store.s.tar, f = T.filtro;
   if (T.lista === null) return head + `<div class="stack">${tabs}<div class="skbox" style="height:160px"></div></div>`;
-  const todas = T.lista.filter(x => x.setor === set.id);
+  const todas = T.lista.filter(x => set.id === 'todos' || x.setor === set.id);
   const abertas = todas.filter(x => !x.feita), feitas = todas.filter(x => x.feita);
   const atras = abertas.filter(x => sitTarefa(x) === 'atrasada').length, hoje = abertas.filter(x => sitTarefa(x) === 'hoje').length;
   const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
@@ -1490,7 +1626,7 @@ function formTar(x, setorPadrao) {
   return `<form data-form="tarefa" data-id="${x ? esc(x.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Tarefa</span><input name="titulo" value="${x ? esc(x.titulo) : ''}" maxlength="120" placeholder="Ex.: Conferir validade dos importados" autocomplete="off"></label>
-    <label class="f"><span>Setor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
     <label class="f"><span>Responsável (opcional)</span><input name="responsavel" value="${x ? esc(x.responsavel || '') : ''}" maxlength="60" placeholder="Ex.: Lucas" autocomplete="off"></label>
     <label class="f"><span>Prazo (opcional)</span><input name="prazo" type="date" value="${x ? esc(x.prazo || '') : ''}"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar tarefa'}</button>
@@ -1685,7 +1821,7 @@ function relatoriosHTML(s) {
   const painel = (t, corpo) => `<section class="panel" style="margin:0"><div class="ph2"><h3>${t}</h3></div>${corpo}</section>`;
   const cat = (a, tot) => tb(['Categoria', 'Valor', '%'], a.map(r => tr([esc(r.c), brl(r.v), pct(tot > 0 ? r.v / tot : 0)])), 'Nenhum lançamento no mês.');
   let corpo = '';
-  if (esc_ === 'geral') corpo += painel('Resultado por setor', tb(['Setor', 'Vendas', 'Custos', 'Resultado', 'Margem', 'Meta', '% da meta'], x.setores.map(r => tr([esc(r.nome), brl(r.v), brl(r.c), `<span style="color:${cor(r.r)}">${brl(r.r)}</span>`, r.v > 0 ? pct(r.r / r.v) : '—', r.m > 0 ? brl(r.m) : '—', r.mp === null ? '—' : pct(r.mp)]).replace(/^/, '')).concat([tr(['<b>Total</b>', `<b>${brl(x.vendas)}</b>`, `<b>${brl(x.custos)}</b>`, `<b style="color:${cor(x.res)}">${brl(x.res)}</b>`, `<b>${pct(x.margem)}</b>`, x.meta > 0 ? `<b>${brl(x.meta)}</b>` : '—', x.metaP === null ? '—' : `<b>${pct(x.metaP)}</b>`])]), ''));
+  if (esc_ === 'geral') corpo += painel('Resultado por setor', tb(['Subsetor', 'Vendas', 'Custos', 'Resultado', 'Margem', 'Meta', '% da meta'], x.setores.map(r => tr([esc(r.nome), brl(r.v), brl(r.c), `<span style="color:${cor(r.r)}">${brl(r.r)}</span>`, r.v > 0 ? pct(r.r / r.v) : '—', r.m > 0 ? brl(r.m) : '—', r.mp === null ? '—' : pct(r.mp)]).replace(/^/, '')).concat([tr(['<b>Total</b>', `<b>${brl(x.vendas)}</b>`, `<b>${brl(x.custos)}</b>`, `<b style="color:${cor(x.res)}">${brl(x.res)}</b>`, `<b>${pct(x.margem)}</b>`, x.meta > 0 ? `<b>${brl(x.meta)}</b>` : '—', x.metaP === null ? '—' : `<b>${pct(x.metaP)}</b>`])]), ''));
   corpo += `<div class="duo">${painel('Vendas por categoria', cat(x.catV, x.vendas))}${painel('Custos por categoria', cat(x.catC, x.custos))}</div>`;
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
   corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
@@ -1874,7 +2010,7 @@ function rotasDoPerfil(s) {
   const adm = ehAdminFixo(s.user) && s.user.emailVerified;
   const eAdminEmp = s.perfil && s.perfil.papel === 'admin';
   const r = [{ id:'painel', nome:'Painel', ic:'painel', grp:'Empresa' }];
-  SETORES.forEach(x => r.push({ id:x.id, nome:x.nome, ic:x.id, grp:'Setores' }));
+  r.push({ id:'empresa', nome:'Empresa', ic:'empresa', grp:'Setores' });
   if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Setores' });
   r.push({ id:'boletos', nome:'Contas a pagar', ic:'boletos', grp:'Controle' });
   r.push({ id:'freelancers', nome:'Freelancers', ic:'freelancers', grp:'Controle' });
@@ -1885,6 +2021,11 @@ function rotasDoPerfil(s) {
   return r;
 }
 const ROTAS_EXTRAS = { setores:'Setores', mais:'Mais' };
+/* #/bebidas (e qualquer subsetor) abre a página Empresa já filtrada nesse subsetor */
+function rotaDeHash() {
+  const id = location.hash.replace('#/', '') || 'painel', sub = SETORES.some(x => x.id === id) ? id : null;
+  return { rota:sub ? 'empresa' : id, sub };
+}
 const iniciais = s => (s.perfil.nome || s.user.email || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
 
 V.app = s => {
@@ -1899,10 +2040,10 @@ V.app = s => {
   });
   const papel = s.perfil.papel === 'admin' ? 'Admin' : 'Gerente';
   const nomeCurto = (s.perfil.nome || s.user.email).split(/\s+/).slice(0, 2).join(' ');
-  const ehSetor = SETORES.some(x => x.id === atual.id) || atual.id === 'pessoal';
+  const ehSetor = atual.id === 'empresa' || atual.id === 'pessoal';
   const tab = (id, nome, ic, on) => `<a href="#/${id}" class="${on ? 'on' : ''}" ${on ? 'aria-current="page"' : ''}>${ico(ic)}${nome}</a>`;
   const tabbar = tab('painel', 'Painel', 'painel', atual.id === 'painel')
-    + tab('setores', 'Setores', 'importados', ehSetor || atual.id === 'setores')
+    + tab('setores', 'Setores', 'empresa', ehSetor || atual.id === 'setores')
     + tab('boletos', 'Contas', 'boletos', atual.id === 'boletos')
     + tab('freelancers', 'Presença', 'freelancers', atual.id === 'freelancers')
     + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','equipe','diag'].includes(atual.id));
@@ -2030,9 +2171,9 @@ function painelHTML(s, nomeCurto) {
 function page(id, s, nomeCurto) {
   if (id === 'painel') return painelHTML(s, nomeCurto);
   if (id === 'setores') {
-    const lista = SETORES.map(x => ({ id:x.id, nome:x.nome })).concat(rotasDoPerfil(s).some(r => r.id === 'pessoal') ? [{ id:'pessoal', nome:'Pessoal' }] : []);
-    return cab('Setores', 'Os quatro setores da 356' + (lista.length > 4 ? ' e o Pessoal, para lançar seus gastos.' : '.')) + `<div class="sets">${lista.map(x => `
-    <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id === 'pessoal' ? 'pessoal' : x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
+    const lista = [{ id:'empresa', nome:'Empresa' }].concat(rotasDoPerfil(s).some(r => r.id === 'pessoal') ? [{ id:'pessoal', nome:'Pessoal' }] : []);
+    return cab('Setores', 'Empresa' + (lista.length > 1 ? ' e Pessoal, para lançar seus gastos.' : '.')) + `<div class="sets">${lista.map(x => `
+    <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
   }
   if (id === 'mais') {
     const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','equipe','diag'].includes(r.id));
@@ -2041,8 +2182,7 @@ function page(id, s, nomeCurto) {
       <div class="box" style="margin-top:16px">${avisosBox()}</div>
       <div class="box" style="margin-top:16px"><div class="temabox" style="padding:0"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div></div>`;
   }
-  const set = SETORES.find(x => x.id === id);
-  if (set) return setorHTML(s, set);
+  if (id === 'empresa') return setorHTML(s, SETORES.find(x => x.id === s.emp.sub) || { id:'todos', nome:'Empresa' });
   if (id === 'boletos') return boletosHTML(s);
   if (id === 'energia') return energiaHTML(s);
   if (id === 'freelancers') return freelancersHTML(s);
@@ -2062,7 +2202,7 @@ function page(id, s, nomeCurto) {
 /* após desenhar uma página, carrega o que ela precisa */
 async function aposPagina(id, s) {
   if (id === 'painel') { carregarPainel(); return; }
-  if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
+  if (id === 'empresa') { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
   if (id === 'pessoal') { carregarPes(); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
@@ -2098,6 +2238,8 @@ function render() {
     const rotas = rotasDoPerfil(s);
     const id = rotas.some(r => r.id === s.rota) || ROTAS_EXTRAS[s.rota] ? s.rota : 'painel';
     aposPagina(id, s);
+    if (!s.subset.ok) carregarSubs();
+    if (s.forn.lista === null) carregarForn();
     if (s.boletos.lista === null) carregarBoletos();
     if (s.contas.defs === null) carregarContas(false, 'contas');
     if (s.free.lista === null) carregarFree();
@@ -2110,7 +2252,8 @@ Store.on(render);
 window.addEventListener('hashchange', () => {
   if (Store.s.fase !== 'app') return;
   window.scrollTo(0, 0);
-  Store.set({ rota: location.hash.replace('#/', '') || 'painel', painel:{ ...Store.s.painel, chave:null } }); // volta ao painel = dados frescos
+  const rh = rotaDeHash();
+  Store.set({ rota:rh.rota, emp:rh.sub ? { ...Store.s.emp, sub:rh.sub } : Store.s.emp, painel:{ ...Store.s.painel, chave:null } }); // volta ao painel = dados frescos
 });
 window.addEventListener('online', () => Store.set({ online:true }));
 window.addEventListener('offline', () => Store.set({ online:false }));
@@ -2253,7 +2396,10 @@ const acoes = {
       fecharModal(); Store.set({ free:{ ...Store.s.free, pres, erro:null } });
     } catch (e) { fecharModal(); Store.set({ free:{ ...Store.s.free, erro:'Não foi possível marcar como pago. ' + msgErro(e) } }); }
   },
-  lancNovo(el) { abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || (SETORES.some(x => x.id === Store.s.rota) ? Store.s.rota : null))); },
+  lancNovo(el) { abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || subAtualId())); },
+  empSub(el) { history.replaceState(null, '', '#/empresa'); Store.set({ rota:'empresa', emp:{ ...Store.s.emp, sub:el.dataset.s } }); },
+  subsManage() { abrirModal('Subsetores', subsModalHTML()); },
+  fornManage() { abrirModal('Fornecedores', fornModalHTML()); },
   lancEditar(el) { const l = (Store.s.lanc.lista || []).find(x => x.id === el.dataset.id); if (l) abrirModal('Editar lançamento', formLanc(l)); },
   lancTipo(el) {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
@@ -2296,7 +2442,7 @@ const acoes = {
       fecharModal(); Store.set({ lanc:{ ...L, lista:L.lista.map(x => x.id === id ? { ...x, temComprovante:false } : x) } });
     } catch (e) { fecharModal(); Store.set({ lanc:{ ...L, erro:'Não foi possível remover. ' + msgErro(e) } }); }
   },
-  prodNovo(el) { abrirModal('Novo produto', formProd(null, el.dataset.setor)); },
+  prodNovo(el) { abrirModal('Novo produto', formProd(null, el.dataset.setor || subAtualId())); },
   prodEditar(el) { const x = (Store.s.estoque.lista || []).find(p => p.id === el.dataset.id); if (x) abrirModal('Editar produto', formProd(x)); },
   async estAjuste(el) {
     const E = Store.s.estoque, id = el.dataset.id, x = E.lista.find(p => p.id === id); if (!x) return;
@@ -2316,7 +2462,7 @@ const acoes = {
     catch (e) { fecharModal(); Store.set({ estoque:{ ...E, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
   metaEditar(el) { const set = SETORES.find(x => x.id === el.dataset.setor); if (!set) return; abrirModal('Meta de vendas', formMeta(set, el.dataset.mes, (Store.s.metas.mapa || {})[set.id + '_' + el.dataset.mes] || 0)); },
-  tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor)); },
+  tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor || subAtualId())); },
   tarEditar(el) { const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (x) abrirModal('Editar tarefa', formTar(x)); },
   tarFiltro(el) { Store.set({ tar:{ ...Store.s.tar, filtro:el.dataset.f } }); },
   tarRecarregar() { Store.set({ tar:{ lista:null, erro:null, filtro:Store.s.tar.filtro } }); },
@@ -2457,6 +2603,10 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'contaPag') { await salvarContaPag(f, d); return; }
   if (f.dataset.form === 'freelancer') { await salvarFree(f, d); return; }
   if (f.dataset.form === 'lancamento') { await salvarLanc(f, d); return; }
+  if (f.dataset.form === 'subset') { await salvarSubset(f, d); return; }
+  if (f.dataset.form === 'subsetRen') { await renomearSubset(f, d); return; }
+  if (f.dataset.form === 'forn') { await salvarForn(f, d); return; }
+  if (f.dataset.form === 'fornRen') { await renomearForn(f, d); return; }
   if (f.dataset.form === 'produto') { await salvarProd(f, d); return; }
   if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
   if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
@@ -2480,6 +2630,12 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t && t.name === 'tipo' && t.closest && t.closest('form[data-form=conta]')) { const f = t.closest('form'); f.querySelectorAll('[data-so]').forEach(x => x.classList.toggle('hide', x.dataset.so !== t.value)); }
+});
+document.addEventListener('change', e => {
+  const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento]') : null;
+  if (!f) return;
+  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); }
+  if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
 
