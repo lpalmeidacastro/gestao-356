@@ -83,6 +83,12 @@ input::placeholder{color:var(--t4)}
 .links{display:flex;justify-content:space-between;margin-top:16px;font-size:13px}
 .links button{background:none;border:0;color:var(--link);cursor:pointer;font-size:13px;min-height:44px}
 
+
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}
+.printonly{display:none}
+@media (max-width:900px){.duo{grid-template-columns:minmax(0,1fr);gap:24px}}
+
 /* estrutura do app */
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100dvh}
 .side{position:sticky;top:0;height:100dvh;overflow:auto;background:var(--side);border-right:1px solid var(--line);padding:24px 12px;display:flex;flex-direction:column;gap:4px}
@@ -336,6 +342,20 @@ input[type=date]{color-scheme:dark}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
+@media print{
+  :root{--bg:#fff;--side:#fff;--card:#fff;--card2:#fff;--hover:#fff;--track:#ddd;--line:#cfcfd6;--line2:#bbb;--t1:#111;--t2:#222;--t3:#555;--t4:#555;--link:#333;--ok:#0a7d4f;--err:#b3173a;--warn:#8a5200}
+  body{background:#fff;color:#111;font-size:12px}
+  .side,.mhead,.tabbar,.noprint,.offline,.ph .btn{display:none!important}
+  .app{display:block}.wrap{max-width:none;padding:0}
+  .panel,.rc,.box{break-inside:avoid;box-shadow:none}
+  .duo{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .stack{gap:14px}.rcards{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .printonly{display:block;border-bottom:2px solid #111;padding-bottom:8px}
+  .printonly .pt{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.printonly .pb1{font:400 20px var(--titulo)}
+  .ph{display:none!important}.scroll-x{overflow:visible}table{font-size:10.5px}td,th{padding:5px 7px}.panel .ph2{padding:8px 10px}.panel .pb{padding:8px 10px}.rc{padding:10px}
+  @page{size:A4;margin:12mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -423,7 +443,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -1332,6 +1352,79 @@ async function salvarEnergia(f, d) {
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 
+/* ============ relatórios ============ */
+// Tudo calculado no app a partir das coleções; o PDF é o "Imprimir" do navegador (sem biblioteca).
+let relBusca = null;
+async function carregarRel() {
+  const R = Store.s.rel, mes = R.mes;
+  if (R.chave === mes || relBusca === mes) return;
+  relBusca = mes;
+  const ini = mes + '-01', fim = mesAdd(mes, 1) + '-01';
+  try {
+    const [lq, bq, pres, fq, eq, mq, pq, tq] = await Promise.all([
+      colLanc().where('data', '>=', ini).where('data', '<', fim).get(),
+      db.collection(`empresas/${EMPRESA}/boletos`).where('vencimento', '>=', ini).where('vencimento', '<', fim).get(),
+      buscarPresMes(mes), colFree().get(),
+      db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get(),
+      db.collection(`empresas/${EMPRESA}/metas`).get(), colProd().get(), colTar().get()
+    ]);
+    const ar = q => q.docs.map(d => ({ id:d.id, ...d.data() })), metas = {};
+    mq.docs.forEach(d => { metas[d.id] = Number(d.data().vendas) || 0; });
+    const dados = { lanc:ar(lq), boletos:ar(bq), pres:Object.values(pres), free:ar(fq), energia:ar(eq).filter(x => x.loja), metas, prod:ar(pq), tar:ar(tq) };
+    if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados, chave:mes, erro:null } });
+  } catch (e) { console.error(e); if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados:null, chave:mes, erro:'Não foi possível montar o relatório. ' + msgErro(e) } }); }
+  finally { relBusca = null; }
+}
+const somaK = (a, k) => a.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+function calcRel(d, esc, mes) {
+  const geral = esc === 'geral', hoje = hojeStr();
+  const f = a => (geral ? a : a.filter(x => x.setor === esc));
+  const lanc = f(d.lanc), ven = lanc.filter(x => x.tipo === 'venda'), cus = lanc.filter(x => x.tipo === 'custo');
+  const vendas = somaK(ven, 'valor'), custos = somaK(cus, 'valor');
+  const porCat = (a, cats) => cats.map(c => ({ c, v:somaK(a.filter(x => x.categoria === c), 'valor') })).concat([{ c:'Sem categoria', v:somaK(a.filter(x => !cats.includes(x.categoria)), 'valor') }]).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  const setores = SETORES.map(s => {
+    const v = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'venda'), 'valor'), c = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'custo'), 'valor'), m = d.metas[s.id + '_' + mes] || 0;
+    return { ...s, v, c, r:v - c, m, mp:m > 0 ? v / m : null };
+  });
+  const meta = geral ? setores.reduce((s, x) => s + x.m, 0) : (d.metas[esc + '_' + mes] || 0);
+  const bol = f(d.boletos).concat(geral ? [] : []), pagos = bol.filter(b => b.pago), aberto = bol.filter(b => !b.pago);
+  const venc = aberto.filter(b => b.vencimento < hoje), avc = aberto.filter(b => b.vencimento >= hoje);
+  const setorDe = {}; d.free.forEach(x => { setorDe[x.id] = x.setor; });
+  const pres = d.pres.filter(p => geral || setorDe[p.freelaId] === esc), pr = pres.filter(p => p.status === 'presente');
+  const free = { dias:pr.length, total:somaK(pr, 'valor'), pago:somaK(pr.filter(p => p.pago), 'valor'), faltas:pres.length - pr.length };
+  free.devendo = free.total - free.pago;
+  const prod = f(d.prod), emEst = prod.reduce((s, x) => s + (Number(x.qtd) || 0) * (Number(x.custoUn) || 0), 0), abaixo = prod.filter(x => sitEstoque(x) !== 'ok');
+  const tar = f(d.tar), tAb = tar.filter(x => !x.feita), tAtr = tAb.filter(x => x.prazo && x.prazo < hoje), tFeitas = tar.filter(x => x.feita && (x.feitaEm || '').slice(0, 7) === mes);
+  return { lanc, vendas, custos, res:vendas - custos, margem:vendas > 0 ? (vendas - custos) / vendas : 0, catV:porCat(ven, CAT_VENDA), catC:porCat(cus, CAT_CUSTO), setores, meta, metaP:meta > 0 ? vendas / meta : null, bol, pagos, venc, avc, free, energia:geral && d.energia.length ? somaEn(d.energia) : null, emEst, abaixo, nProd:prod.length, tAb, tAtr, tFeitas };
+}
+function relatoriosHTML(s) {
+  const R = s.rel, mes = R.mes, esc_ = R.esc, nome = esc_ === 'geral' ? 'Relatório geral' : 'Relatório · ' + nomeSetor4(esc_);
+  const head = `<div class="ph"><div><div class="ctx">Fechamento do mês, calculado dos lançamentos</div><h1>Relatórios</h1></div>
+    <button class="btn pri noprint" data-act="relPdf">Baixar PDF</button></div>`;
+  const nav = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Escopo"><button class="chip ${esc_ === 'geral' ? 'on' : ''}" data-act="relEsc" data-e="geral">Geral</button>${SETORES.map(x => `<button class="chip ${esc_ === x.id ? 'on' : ''}" data-act="relEsc" data-e="${x.id}">${esc(x.nome)}</button>`).join('')}</div>
+    <div class="mes" role="group" aria-label="Mês"><button data-act="relMes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="relMes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div></div>`;
+  const erro = R.erro ? `<div class="alert err on noprint" role="alert">${esc(R.erro)} <button class="btn ghost" data-act="relRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (!R.dados) return head + erro + `<div class="stack">${nav}<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const x = calcRel(R.dados, esc_, mes), cor = v => (v >= 0 ? 'var(--ok)' : 'var(--err)');
+  const card = (c, l, v, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${c}"></span>${l}</span><span class="v">${v}</span><span class="q">${q}</span></div>`;
+  const cards = `<div class="rcards">${card('var(--ok)', 'Vendas', brl(x.vendas), x.metaP === null ? 'sem meta no mês' : pct(x.metaP) + ' da meta de ' + brl(x.meta))}${card('var(--err)', 'Custos', brl(x.custos), x.vendas > 0 ? pct(x.custos / x.vendas) + ' das vendas' : '—')}${card('#b98cff', 'Resultado', `<span style="color:${cor(x.res)}">${brl(x.res)}</span>`, 'vendas − custos')}${card('var(--warn)', 'Margem', pct(x.margem), 'resultado ÷ vendas')}</div>`;
+  const tb = (cols, linhas, vazioTxt) => linhas.length ? `<div class="scroll-x"><table><thead><tr>${cols.map((c, i) => `<th ${i ? 'style="text-align:right"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>` : `<div class="pb muted" style="font-size:14px">${vazioTxt}</div>`;
+  const tr = a => `<tr>${a.map((c, i) => `<td ${i ? 'style="text-align:right;font-variant-numeric:tabular-nums"' : 'style="color:var(--t1)"'}>${c}</td>`).join('')}</tr>`;
+  const painel = (t, corpo) => `<section class="panel" style="margin:0"><div class="ph2"><h3>${t}</h3></div>${corpo}</section>`;
+  const cat = (a, tot) => tb(['Categoria', 'Valor', '%'], a.map(r => tr([esc(r.c), brl(r.v), pct(tot > 0 ? r.v / tot : 0)])), 'Nenhum lançamento no mês.');
+  let corpo = '';
+  if (esc_ === 'geral') corpo += painel('Resultado por setor', tb(['Setor', 'Vendas', 'Custos', 'Resultado', 'Margem', 'Meta', '% da meta'], x.setores.map(r => tr([esc(r.nome), brl(r.v), brl(r.c), `<span style="color:${cor(r.r)}">${brl(r.r)}</span>`, r.v > 0 ? pct(r.r / r.v) : '—', r.m > 0 ? brl(r.m) : '—', r.mp === null ? '—' : pct(r.mp)]).replace(/^/, '')).concat([tr(['<b>Total</b>', `<b>${brl(x.vendas)}</b>`, `<b>${brl(x.custos)}</b>`, `<b style="color:${cor(x.res)}">${brl(x.res)}</b>`, `<b>${pct(x.margem)}</b>`, x.meta > 0 ? `<b>${brl(x.meta)}</b>` : '—', x.metaP === null ? '—' : `<b>${pct(x.metaP)}</b>`])]), ''));
+  corpo += `<div class="duo">${painel('Vendas por categoria', cat(x.catV, x.vendas))}${painel('Custos por categoria', cat(x.catC, x.custos))}</div>`;
+  const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
+  corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
+    ${painel('Freelancers do mês', tb(['Item', 'Valor'], [tr(['Diárias presentes', x.free.dias]), tr(['Faltas', x.free.faltas]), tr(['Total das diárias', brl(x.free.total)]), tr(['Já pago', brl(x.free.pago)]), tr(['<b>A pagar</b>', `<b>${brl(x.free.devendo)}</b>`])], ''))}</div>`;
+  corpo += `<div class="duo">${painel('Estoque e tarefas', tb(['Item', 'Valor'], [tr(['Produtos cadastrados', x.nProd]), tr(['Valor em estoque (hoje)', brl(x.emEst)]), tr(['Abaixo do mínimo ou zerados', x.abaixo.length]), tr(['Tarefas abertas', x.tAb.length]), tr(['Tarefas atrasadas', x.tAtr.length]), tr(['Tarefas concluídas no mês', x.tFeitas.length])], ''))}
+    ${esc_ === 'geral' ? painel('Energia solar (Loja 01 + Loja 02)', x.energia ? tb(['Item', 'Valor'], [tr(['Sem desconto', brl(x.energia.semDesconto)]), tr(['Pago ao dono da usina', brl(x.energia.pagoUsina)]), tr(['Pago à Enel', brl(x.energia.pagoEnel)]), tr(['<b>Economia</b>', `<b style="color:${cor(ecoEn(x.energia))}">${brl(ecoEn(x.energia))} (${pct(ecoPctEn(x.energia))})</b>`]), tr(['Cobertura solar', pct(cobEn(x.energia))])], '') : '<div class="pb muted" style="font-size:14px">Sem dados de energia neste mês.</div>') : ''}</div>`;
+  if (esc_ !== 'geral') corpo += painel('Lançamentos do mês', tb(['Data / descrição', 'Tipo', 'Categoria', 'Valor'], x.lanc.slice().sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(l => tr([dataBR(l.data) + ' · ' + esc(l.descricao || '—'), l.tipo === 'venda' ? 'Venda' : 'Custo', esc(l.categoria || '—'), `<span style="color:${l.tipo === 'venda' ? 'var(--ok)' : 'var(--err)'}">${l.tipo === 'venda' ? '' : '−'}${brl(l.valor)}</span>`])), 'Nenhum lançamento neste mês.'));
+  const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão</b><span>${esc(nome)} · ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
+  return head + erro + `<div class="stack">${nav}${topo}${cards}${corpo}</div>`;
+}
+
 /* ============ views ============ */
 const V = {};
 
@@ -1557,7 +1650,7 @@ function page(id, s, nomeCurto) {
   if (id === 'boletos') return boletosHTML(s);
   if (id === 'energia') return energiaHTML(s);
   if (id === 'freelancers') return freelancersHTML(s);
-  if (id === 'relatorios') return cab('Relatórios', 'Fechamento por setor e relatório geral.') + vazio('relatorios', 'Relatórios em construção', 'Depois que os lançamentos existirem, o fechamento de cada setor e o geral saem daqui em PDF.');
+  if (id === 'relatorios') return relatoriosHTML(s);
   if (id === 'pessoal') return cab('Pessoal', 'Vida pessoal do casal. <span class="badge ind">Só Luiz e Eliana</span>') +
     vazio('pessoal', 'Espaço pessoal vazio', 'O gerente não enxerga esta área, nem nos dados. Seus gastos e as entradas de aluguéis e rendas extras entram aqui.');
   if (id === 'equipe') return cab('Equipe', 'Quem tem acesso à empresa. O gerente entra por convite de uso único, válido por 7 dias.') + `
@@ -1576,6 +1669,7 @@ async function aposPagina(id, s) {
   if (id === 'painel') { carregarPainel(); return; }
   if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
+  if (id === 'relatorios') { carregarRel(); return; }
   if (id === 'equipe') {
     const box = $('#equipeLista'); if (!box) return;
     try {
@@ -1825,6 +1919,10 @@ const acoes = {
   energiaEditar(el) { const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (x) abrirModal('Editar ' + nomeLoja(x.loja) + ' · ' + mesNome(x.mes, true).toLowerCase(), formEnergia(x)); },
   emes(el) { const E = Store.s.energia, novo = mesAdd(E.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ energia:{ ...E, mes:novo } }); },
   eloja(el) { Store.set({ energia:{ ...Store.s.energia, loja:el.dataset.l } }); },
+  relEsc(el) { Store.set({ rel:{ ...Store.s.rel, esc:el.dataset.e } }); },
+  relMes(el) { const R = Store.s.rel, novo = mesAdd(R.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ rel:{ ...R, mes:novo, dados:null, erro:null } }); },
+  relRecarregar() { Store.set({ rel:{ ...Store.s.rel, dados:null, chave:null, erro:null } }); },
+  relPdf() { document.title = 'Relatorio-356-' + Store.s.rel.esc + '-' + Store.s.rel.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
   energiaRecarregar() { const E = Store.s.energia; Store.set({ energia:{ lista:null, mes:E.mes, loja:E.loja, erro:null } }); },
   energiaApagar(el) {
     const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (!x) return;
