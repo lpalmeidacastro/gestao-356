@@ -1639,12 +1639,12 @@ function rotasDoPerfil(s) {
   const adm = ehAdminFixo(s.user) && s.user.emailVerified;
   const eAdminEmp = s.perfil && s.perfil.papel === 'admin';
   const r = [{ id:'painel', nome:'Painel', ic:'painel', grp:'Empresa' }];
-  SETORES.forEach(x => r.push({ id:x.id, nome:x.nome, ic:x.id, grp:'Empresa' }));
+  SETORES.forEach(x => r.push({ id:x.id, nome:x.nome, ic:x.id, grp:'Setores' }));
+  if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Setores' });
   r.push({ id:'boletos', nome:'Boletos', ic:'boletos', grp:'Controle' });
   r.push({ id:'freelancers', nome:'Freelancers', ic:'freelancers', grp:'Controle' });
   r.push({ id:'energia', nome:'Energia solar', ic:'energia', grp:'Controle' });
   r.push({ id:'relatorios', nome:'Relatórios', ic:'relatorios', grp:'Controle' });
-  if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Casal' });
   if (eAdminEmp) r.push({ id:'equipe', nome:'Equipe', ic:'equipe', grp:'Gestão' });
   r.push({ id:'diag', nome:'Diagnóstico', ic:'diag', grp:'Gestão' });
   return r;
@@ -1664,13 +1664,13 @@ V.app = s => {
   });
   const papel = s.perfil.papel === 'admin' ? 'Admin' : 'Gerente';
   const nomeCurto = (s.perfil.nome || s.user.email).split(/\s+/).slice(0, 2).join(' ');
-  const ehSetor = SETORES.some(x => x.id === atual.id);
+  const ehSetor = SETORES.some(x => x.id === atual.id) || atual.id === 'pessoal';
   const tab = (id, nome, ic, on) => `<a href="#/${id}" class="${on ? 'on' : ''}" ${on ? 'aria-current="page"' : ''}>${ico(ic)}${nome}</a>`;
   const tabbar = tab('painel', 'Painel', 'painel', atual.id === 'painel')
     + tab('setores', 'Setores', 'importados', ehSetor || atual.id === 'setores')
     + tab('boletos', 'Boletos', 'boletos', atual.id === 'boletos')
     + tab('freelancers', 'Presença', 'freelancers', atual.id === 'freelancers')
-    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','pessoal','equipe','diag'].includes(atual.id));
+    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','equipe','diag'].includes(atual.id));
   return `
 <div class="app">
   <aside class="side">
@@ -1793,10 +1793,13 @@ function painelHTML(s, nomeCurto) {
 
 function page(id, s, nomeCurto) {
   if (id === 'painel') return painelHTML(s, nomeCurto);
-  if (id === 'setores') return cab('Setores', 'Os quatro setores da 356.') + `<div class="sets">${SETORES.map(x => `
-    <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
+  if (id === 'setores') {
+    const lista = SETORES.map(x => ({ id:x.id, nome:x.nome })).concat(rotasDoPerfil(s).some(r => r.id === 'pessoal') ? [{ id:'pessoal', nome:'Pessoal' }] : []);
+    return cab('Setores', 'Os quatro setores da 356' + (lista.length > 4 ? ' e o Pessoal, para lançar seus gastos.' : '.')) + `<div class="sets">${lista.map(x => `
+    <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id === 'pessoal' ? 'pessoal' : x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
+  }
   if (id === 'mais') {
-    const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','pessoal','equipe','diag'].includes(r.id));
+    const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','equipe','diag'].includes(r.id));
     return cab('Mais') + `<div class="box"><div class="lista">${rotas.map(r => `<a href="#/${r.id}">${ico(r.ic)}${esc(r.nome)}</a>`).join('')}
       <a href="#/mais" data-act="sair">${ico('sair')}Sair</a></div></div>
       <div class="box" style="margin-top:16px"><div class="temabox" style="padding:0"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div></div>`;
