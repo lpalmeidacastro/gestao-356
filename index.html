@@ -443,7 +443,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -1425,6 +1425,121 @@ function relatoriosHTML(s) {
   return head + erro + `<div class="stack">${nav}${topo}${cards}${corpo}</div>`;
 }
 
+/* ============ pessoal (só Luiz e Eliana; regra do banco: pessoal/{emp}/*) ============ */
+// pessoal/356/categorias/{id}: nome, tipo (gasto|entrada), ordem   |   pessoal/356/movimentos/{id}: tipo (gasto|entrada), valor, data, categoria (texto), descricao
+const colPes = () => db.collection(`pessoal/${EMPRESA}/movimentos`);
+const colPesCat = () => db.collection(`pessoal/${EMPRESA}/categorias`);
+const CATS_SUG = {
+  gasto:['Moradia', 'Contas da casa', 'Mercado', 'Restaurantes e delivery', 'Transporte e combustível', 'Saúde e farmácia', 'Educação', 'Lazer e viagens', 'Assinaturas e telefone', 'Roupas e cuidados pessoais', 'Impostos e taxas', 'Presentes e doações', 'Outros gastos'],
+  entrada:['Aluguéis recebidos', 'Renda extra', 'Outras entradas']
+};
+let pesBusca = null, pesCatBusca = false;
+async function carregarPes() {
+  const P = Store.s.pes, mes = P.mes;
+  try {
+    if (!P.cats && !pesCatBusca) {
+      pesCatBusca = true;
+      const q = await colPesCat().get();
+      const cats = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      Store.set({ pes:{ ...Store.s.pes, cats, erro:null } });
+    }
+    if (Store.s.pes.chave !== mes && pesBusca !== mes) {
+      pesBusca = mes;
+      const q = await colPes().where('data', '>=', mes + '-01').where('data', '<', mesAdd(mes, 1) + '-01').get();
+      const lista = q.docs.map(d => ({ id:d.id, ...d.data() }));
+      if (Store.s.pes.mes === mes) Store.set({ pes:{ ...Store.s.pes, lista, chave:mes, erro:null } });
+    }
+  } catch (e) { console.error(e); Store.set({ pes:{ ...Store.s.pes, cats:Store.s.pes.cats || [], lista:Store.s.pes.lista || [], chave:mes, erro:'Não foi possível carregar o Pessoal. ' + msgErro(e) } }); }
+  finally { pesBusca = null; pesCatBusca = false; }
+}
+const catsDe = (P, tp) => (P.cats || []).filter(c => c.tipo === tp);
+function pessoalHTML(s) {
+  const P = s.pes, mes = P.mes;
+  const head = `<div class="ph"><div><div class="ctx">Só Luiz e Eliana veem esta área. O gerente não tem acesso, nem aos dados.</div><h1>Pessoal</h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="pesNovo" data-t="entrada">+ Nova entrada</button><button class="btn pri" data-act="pesNovo" data-t="gasto">+ Novo gasto</button></div></div>`;
+  const erro = P.erro ? `<div class="alert err on noprint" role="alert">${esc(P.erro)} <button class="btn ghost" data-act="pesRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  const nav = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Filtro"><button class="chip ${P.filtro === 'todos' ? 'on' : ''}" data-act="pesFiltro" data-f="todos">Tudo</button><button class="chip ${P.filtro === 'gasto' ? 'on' : ''}" data-act="pesFiltro" data-f="gasto">Gastos</button><button class="chip ${P.filtro === 'entrada' ? 'on' : ''}" data-act="pesFiltro" data-f="entrada">Entradas</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" data-act="pesCats">Categorias</button><button class="btn" data-act="pesPdf">Baixar PDF</button>
+    <div class="mes" role="group" aria-label="Mês"><button data-act="pmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="pmes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div></div></div>`;
+  if (P.cats === null || P.chave !== mes || !P.lista) return head + erro + `<div class="stack">${nav}<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
+  const semCats = P.cats.length === 0;
+  const sug = semCats ? `<div class="box noprint"><div class="bh" style="margin:0"><div><h2>Comece pelas categorias</h2><p class="muted" style="font-size:13px;margin-top:4px">Use a lista sugerida (moradia, mercado, saúde, lazer, aluguéis recebidos e outras) e depois adicione ou tire o que quiser em "Categorias".</p></div><button class="btn pri" data-act="pesCatSug">Usar lista sugerida</button></div></div>` : '';
+  const g = P.lista.filter(x => x.tipo === 'gasto'), en = P.lista.filter(x => x.tipo === 'entrada');
+  const tg = somaK(g, 'valor'), te = somaK(en, 'valor'), sal = te - tg;
+  const porCat = Object.entries(g.reduce((o, x) => { const c = x.categoria || 'Sem categoria'; o[c] = (o[c] || 0) + (Number(x.valor) || 0); return o; }, {})).sort((a, b) => b[1] - a[1]);
+  const card = (c, l, v, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${c}"></span>${l}</span><span class="v">${v}</span><span class="q">${q}</span></div>`;
+  const cards = `<div class="rcards">${card('var(--ok)', 'Entradas', brl(te), nLanc(en.length))}${card('var(--err)', 'Gastos', brl(tg), nLanc(g.length))}${card('#b98cff', 'Saldo do mês', `<span style="color:${sal >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(sal)}</span>`, sal >= 0 ? 'entradas − gastos' : 'gastou mais do que entrou')}${card('var(--warn)', 'Maior gasto', porCat.length ? esc(porCat[0][0]) : '—', porCat.length ? brl(porCat[0][1]) + ' · ' + pct(tg > 0 ? porCat[0][1] / tg : 0) : 'sem gastos no mês')}</div>`;
+  const barras = porCat.length ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Gastos por categoria</h3></div><div class="pb" style="display:flex;flex-direction:column;gap:14px">${porCat.map(([c, v]) => `<div class="meta"><div class="r"><span>${esc(c)}</span><b>${brl(v)} · ${pct(tg > 0 ? v / tg : 0)}</b></div><div class="trk" aria-hidden="true"><div style="width:${tg > 0 ? Math.max(2, Math.round(v / tg * 100)) : 0}%"></div></div></div>`).join('')}</div></section>` : '';
+  const ls = P.lista.filter(x => P.filtro === 'todos' || x.tipo === P.filtro).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  const rows = ls.map(x => `<div class="brow" role="row">
+      <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}</span></div>
+      <div class="bven">${dataBR(x.data)}</div><div class="bval" style="color:${x.tipo === 'entrada' ? 'var(--ok)' : 'var(--t1)'}">${x.tipo === 'entrada' ? '+' : '−'}${brl(x.valor)}</div><div class="bst"><span class="badge ${x.tipo === 'entrada' ? 'ok' : 'err'}">${x.tipo === 'entrada' ? 'Entrada' : 'Gasto'}</span></div>
+      <div class="bact noprint"><button class="ib" data-act="pesEditar" data-id="${esc(x.id)}" aria-label="Editar">${ico('edit')}</button></div></div>`).join('');
+  const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table">
+      <div class="brow hd" role="row"><span>Descrição</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span class="noprint"></span></div>
+      ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nada lançado em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Novo gasto" ou "+ Nova entrada".</div>`}</div></section>`;
+  const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão · Pessoal</b><span>Extrato de ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
+  return head + erro + `<div class="stack">${nav}${topo}${sug}${cards}${barras}${lista}</div>`;
+}
+const nLanc = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
+function opcoesCat(tp, atual) {
+  const nomes = catsDe(Store.s.pes, tp).map(c => c.nome);
+  if (atual && !nomes.includes(atual)) nomes.push(atual);
+  if (!nomes.length) return '<option value="">Sem categoria</option>';
+  return nomes.map(n => `<option ${atual === n ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+function formPes(m, tipoPadrao) {
+  const tipo = m ? m.tipo : (tipoPadrao || 'gasto');
+  return `<form data-form="pessoal" data-id="${m ? esc(m.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <div class="f"><span>Tipo</span><div class="seg" role="group" aria-label="Tipo" id="tipoSeg"><button type="button" class="${tipo === 'gasto' ? 'on' : ''}" data-act="pesTipo" data-t="gasto">Gasto</button><button type="button" class="${tipo === 'entrada' ? 'on' : ''}" data-act="pesTipo" data-t="entrada">Entrada</button></div><input type="hidden" name="tipo" value="${tipo}"></div>
+    <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${m ? esc(String(m.valor).replace('.', ',')) : ''}" placeholder="123,45" autocomplete="off"></label>
+    <label class="f"><span>Data</span><input name="data" type="date" value="${m ? esc(m.data) : hojeStr()}" max="${hojeStr()}"></label>
+    <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${opcoesCat(tipo, m ? m.categoria : '')}</select></label>
+    <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${m ? esc(m.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Feira da semana, aluguel apto 12" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${m ? 'Salvar alterações' : 'Salvar'}</button>
+    ${m ? `<button type="button" class="btn bad full" data-act="pesApagar" data-id="${esc(m.id)}">Apagar</button>` : ''}</div></form>`;
+}
+async function salvarPes(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const valor = parseValor(d.valor), data = d.data || '';
+  if (!['gasto', 'entrada'].includes(d.tipo)) return erro('Escolha se é gasto ou entrada.');
+  if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 123,45');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
+  if (data > hojeStr()) return erro('A data não pode ser no futuro.');
+  btn.disabled = true;
+  try {
+    const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim() };
+    const P = Store.s.pes; const ref = id ? colPes().doc(id) : colPes().doc();
+    if (id) await ref.update(mud); else await ref.set({ ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+    let lista = (P.lista || []).filter(x => x.id !== ref.id);
+    if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
+    fecharModal(); Store.set({ pes:{ ...P, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+function catsModalHTML() {
+  const P = Store.s.pes;
+  const sec = (tp, titulo) => `<h3 style="font-size:14px;margin:16px 0 8px">${titulo}</h3>${catsDe(P, tp).map(c => `<div class="frow" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)"><span style="color:var(--t1)">${esc(c.nome)}</span><button class="ib" data-act="pesCatDel" data-id="${esc(c.id)}" aria-label="Remover ${esc(c.nome)}">${ico('close')}</button></div>`).join('') || '<p class="muted" style="font-size:13px">Nenhuma categoria.</p>'}`;
+  return `<p class="muted" style="font-size:13px">Remover uma categoria não apaga os lançamentos antigos: eles mantêm o nome.</p>${sec('gasto', 'Categorias de gastos')}${sec('entrada', 'Categorias de entradas')}
+    <form data-form="pesCat" novalidate style="margin-top:16px"><div class="alert" role="alert"></div>
+    <div class="f"><span>Nova categoria</span><div style="display:flex;gap:8px;flex-wrap:wrap"><select name="tipo" style="flex:0 0 auto;width:auto"><option value="gasto">Gasto</option><option value="entrada">Entrada</option></select><input name="nome" maxlength="40" placeholder="Ex.: Pet, Academia" autocomplete="off" style="flex:1 1 140px"></div></div>
+    <div class="acoes"><button class="btn pri full" type="submit">Adicionar categoria</button></div></form>`;
+}
+async function salvarPesCat(f, d) {
+  const av = f.querySelector('.alert'), erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const nome = (d.nome || '').trim(), tp = d.tipo, P = Store.s.pes;
+  if (!['gasto', 'entrada'].includes(tp)) return erro('Escolha gasto ou entrada.');
+  if (nome.length < 2) return erro('Digite o nome da categoria. Exemplo: Pet');
+  if (catsDe(P, tp).some(c => c.nome.toLowerCase() === nome.toLowerCase())) return erro('Essa categoria já existe.');
+  try {
+    const ordem = Math.max(0, ...(P.cats || []).map(c => c.ordem || 0)) + 1, ref = colPesCat().doc();
+    await ref.set({ nome, tipo:tp, ordem, criadoPorUid:Store.s.user.uid });
+    Store.set({ pes:{ ...P, cats:(P.cats || []).concat([{ id:ref.id, nome, tipo:tp, ordem }]) } });
+    abrirModal('Categorias', catsModalHTML());
+  } catch (e) { erro(msgErro(e)); }
+}
+
 /* ============ views ============ */
 const V = {};
 
@@ -1651,8 +1766,7 @@ function page(id, s, nomeCurto) {
   if (id === 'energia') return energiaHTML(s);
   if (id === 'freelancers') return freelancersHTML(s);
   if (id === 'relatorios') return relatoriosHTML(s);
-  if (id === 'pessoal') return cab('Pessoal', 'Vida pessoal do casal. <span class="badge ind">Só Luiz e Eliana</span>') +
-    vazio('pessoal', 'Espaço pessoal vazio', 'O gerente não enxerga esta área, nem nos dados. Seus gastos e as entradas de aluguéis e rendas extras entram aqui.');
+  if (id === 'pessoal') return pessoalHTML(s);
   if (id === 'equipe') return cab('Equipe', 'Quem tem acesso à empresa. O gerente entra por convite de uso único, válido por 7 dias.') + `
     <div class="panel"><div class="ph2"><h3>Convidar gerente</h3><button class="btn pri" data-act="convite">Gerar convite</button></div>
       <div class="pb" id="conviteBox"><p class="muted" style="font-size:14px">Gere o link e mande ao Lucas. Ele cria a conta e entra só na área da empresa.</p></div></div>
@@ -1670,6 +1784,7 @@ async function aposPagina(id, s) {
   if (SETORES.some(x => x.id === id)) { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
+  if (id === 'pessoal') { carregarPes(); return; }
   if (id === 'equipe') {
     const box = $('#equipeLista'); if (!box) return;
     try {
@@ -1923,6 +2038,45 @@ const acoes = {
   relMes(el) { const R = Store.s.rel, novo = mesAdd(R.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ rel:{ ...R, mes:novo, dados:null, erro:null } }); },
   relRecarregar() { Store.set({ rel:{ ...Store.s.rel, dados:null, chave:null, erro:null } }); },
   relPdf() { document.title = 'Relatorio-356-' + Store.s.rel.esc + '-' + Store.s.rel.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
+  pmes(el) { const P = Store.s.pes, novo = mesAdd(P.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ pes:{ ...P, mes:novo, lista:null, chave:null, erro:null } }); },
+  pesFiltro(el) { Store.set({ pes:{ ...Store.s.pes, filtro:el.dataset.f } }); },
+  pesRecarregar() { Store.set({ pes:{ ...Store.s.pes, cats:null, lista:null, chave:null, erro:null } }); },
+  pesNovo(el) { abrirModal(el.dataset.t === 'entrada' ? 'Nova entrada' : 'Novo gasto', formPes(null, el.dataset.t)); },
+  pesEditar(el) { const m = (Store.s.pes.lista || []).find(x => x.id === el.dataset.id); if (m) abrirModal('Editar lançamento', formPes(m)); },
+  pesTipo(el) {
+    const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
+    f.querySelectorAll('#tipoSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === tp));
+    f.querySelector('#catSel').innerHTML = opcoesCat(tp, '');
+  },
+  pesApagar(el) {
+    const m = (Store.s.pes.lista || []).find(x => x.id === el.dataset.id); if (!m) return;
+    abrirModal('Apagar lançamento', `<p style="font-size:14px;margin-bottom:16px">Apagar <b style="color:var(--t1)">${esc(m.descricao || m.categoria || 'este lançamento')}</b> de ${brl(m.valor)}? Isso não dá para desfazer.</p>
+      <div class="acoes"><button class="btn bad full" data-act="pesApagarOk" data-id="${esc(m.id)}">Apagar</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async pesApagarOk(el) {
+    const id = el.dataset.id, P = Store.s.pes;
+    try { await colPes().doc(id).delete(); fecharModal(); Store.set({ pes:{ ...P, lista:P.lista.filter(x => x.id !== id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ pes:{ ...P, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
+  pesCats() { abrirModal('Categorias', catsModalHTML()); },
+  async pesCatSug() {
+    const P = Store.s.pes;
+    try {
+      const b = db.batch(), novas = []; let ordem = Math.max(0, ...(P.cats || []).map(c => c.ordem || 0));
+      ['gasto', 'entrada'].forEach(tp => CATS_SUG[tp].forEach(nome => {
+        if (catsDe(P, tp).some(c => c.nome === nome)) return;
+        const ref = colPesCat().doc(); ordem++; const c = { nome, tipo:tp, ordem, criadoPorUid:Store.s.user.uid };
+        b.set(ref, c); novas.push({ id:ref.id, ...c });
+      }));
+      await b.commit(); Store.set({ pes:{ ...P, cats:(P.cats || []).concat(novas), erro:null } });
+    } catch (e) { Store.set({ pes:{ ...P, erro:'Não foi possível criar as categorias. ' + msgErro(e) } }); }
+  },
+  async pesCatDel(el) {
+    const id = el.dataset.id, P = Store.s.pes;
+    try { await colPesCat().doc(id).delete(); Store.set({ pes:{ ...P, cats:P.cats.filter(c => c.id !== id) } }); abrirModal('Categorias', catsModalHTML()); }
+    catch (e) { Store.set({ pes:{ ...P, erro:'Não foi possível remover. ' + msgErro(e) } }); fecharModal(); }
+  },
+  pesPdf() { document.title = 'Pessoal-' + Store.s.pes.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
   energiaRecarregar() { const E = Store.s.energia; Store.set({ energia:{ lista:null, mes:E.mes, loja:E.loja, erro:null } }); },
   energiaApagar(el) {
     const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (!x) return;
@@ -1994,6 +2148,8 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
   if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
   if (f.dataset.form === 'energia') { await salvarEnergia(f, d); return; }
+  if (f.dataset.form === 'pessoal') { await salvarPes(f, d); return; }
+  if (f.dataset.form === 'pesCat') { await salvarPesCat(f, d); return; }
   const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
   try {
     if (f.dataset.form === 'entrar') await entrar(d.email || '', d.senha || '');
