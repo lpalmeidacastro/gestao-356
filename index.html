@@ -895,7 +895,7 @@ function ocorrencias(defs, pag, mes) {
       if (!c.vencimento || c.vencimento.slice(0, 7) !== mes) return;
       venc = c.vencimento;
     }
-    out.push({ id:c.id + '_' + mes, contaId:c.id, mes, descricao:c.descricao, setor:c.setor, recorrente:!!c.recorrente, vencimento:venc,
+    out.push({ id:c.id + '_' + mes, contaId:c.id, mes, descricao:c.descricao, setor:c.setor, fornecedorNome:c.fornecedorNome || null, recorrente:!!c.recorrente, vencimento:venc,
       valor:(p && p.valor != null) ? p.valor : c.valor, pago:!!(p && p.pago), pagoEm:p ? (p.pagoEm || null) : null, conta:'sim' });
   });
   return out.sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao));
@@ -924,7 +924,7 @@ function contasHTML(s, emb) {
   const rows = oc.map(b => {
     const st = sitBoleto(b), rep = b.recorrente ? 'todo mês' : 'só uma vez';
     return `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${emb ? rep : esc(nomeSetor(b.setor)) + ' · ' + rep}</span></div>
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${emb ? rep : esc(nomeSetor(b.setor)) + fornTxt(b) + ' · ' + rep}</span></div>
       <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
       <div class="bval">${brl(b.valor)}</div>
       <div class="bst">${badgeSit(st)}</div>
@@ -975,7 +975,7 @@ function todasHTML(s) {
       : `<button class="ib" data-act="contaEditar" data-id="${esc(b.contaId)}" aria-label="Editar conta">${ico('edit')}</button>
         ${b.pago ? `<button class="btn" data-act="contaDesfazer" data-c="${esc(b.contaId)}" data-m="${b.mes}">Desfazer</button>` : `<button class="btn pg" data-act="contaPagar" data-c="${esc(b.contaId)}" data-m="${b.mes}">Marcar pago</button>`}`;
     return `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))} · ${tipo}</span></div>
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))}${fornTxt(b)} · ${tipo}</span></div>
       <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
       <div class="bval">${brl(b.valor)}</div>
       <div class="bst">${badgeSit(st)}</div>
@@ -989,13 +989,32 @@ function todasHTML(s) {
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${tudo.length ? 'Nada nesta situação.' : 'Nada cadastrado ainda. Use "+ Novo boleto" ou "+ Nova conta agendada".'}</div>`}</div>
     </section></div>`;
 }
+function fornCampo(setor, fid) {
+  const FL = (Store.s.forn.lista || []), semForn = !FL.length;
+  const opts = FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
+  return `<div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
+      <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${opts}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
+      <label class="f ${semForn ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
+    </div>`;
+}
+function fornValida(d) {
+  if (d.setor !== ID_FORN) return '';
+  if (d.fornecedorId === '__novo') return (d.novoFornecedor || '').trim().length < 2 ? 'Digite o nome do novo fornecedor.' : '';
+  return (!d.fornecedorId || !(Store.s.forn.lista || []).some(x => x.id === d.fornecedorId)) ? 'Escolha o fornecedor ou cadastre um novo.' : '';
+}
+async function fornResolve(d) {
+  if (d.setor !== ID_FORN) return { fornecedorId:null, fornecedorNome:null };
+  const f = d.fornecedorId === '__novo' ? await criarFornecedor((d.novoFornecedor || '').trim()) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
+  return { fornecedorId:f.id, fornecedorNome:f.nome };
+}
+const fornTxt = x => x && x.fornecedorNome ? ' · ' + esc(x.fornecedorNome) : '';
 function formConta(c) {
   const admin = Store.s.perfil.papel === 'admin', rec = c ? !!c.recorrente : true;
   const v = c ? String(c.valor).replace('.', ',') : '';
   return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
-    ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`}
+    ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>${fornCampo(c ? c.setor : 'geral', c && c.fornecedorId)}`}
     <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
     <div data-so="rec" ${rec ? '' : 'class="hide"'}>
       <label class="f"><span>Dia do vencimento (1 a 31)</span><input name="dia" type="number" min="1" max="31" inputmode="numeric" value="${c && c.dia ? esc(c.dia) : ''}" placeholder="Ex.: 10"></label>
@@ -1016,6 +1035,7 @@ async function salvarConta(f, d) {
   if (!desc) return erro('Escreva que conta é.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
   if (!ehPes() && !setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  const ef = ehPes() ? '' : fornValida(d); if (ef) return erro(ef);
   const base = { descricao:desc, setor:ehPes() ? 'pessoal' : d.setor, valor, recorrente:rec };
   if (rec) {
     const dia = Number(d.dia);
@@ -1029,6 +1049,7 @@ async function salvarConta(f, d) {
   }
   btn.disabled = true;
   try {
+    Object.assign(base, ehPes() ? { fornecedorId:null, fornecedorNome:null } : await fornResolve(d));
     const C = Store.s[kC()], id = f.dataset.id;
     let defs;
     if (id) { await colContas().doc(id).update(base); defs = C.defs.map(x => x.id === id ? { ...x, ...base } : x); }
@@ -1038,7 +1059,7 @@ async function salvarConta(f, d) {
       defs = C.defs.concat([{ id:ref.id, ...novo, criadoEm:null }]);
     }
     fecharModal();
-    Store.set({ [kC()]:{ ...Store.s[kC()], defs, erro:null } });
+    Store.set({ [kC()]:{ ...Store.s[kC()], defs, erro:null }, forn:Store.s.forn });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 function formContaPag(oc) {
@@ -1085,7 +1106,7 @@ function boletosHTML(s) {
   const rows = linhas.map(b => {
     const st = sitBoleto(b);
     return `<div class="brow" role="row">
-      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))}</span></div>
+      <div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${esc(nomeSetor(b.setor))}${fornTxt(b)}</span></div>
       <div class="bven">${dataBR(b.vencimento)} <span>${esc(quandoTxt(b))}</span></div>
       <div class="bval">${brl(b.valor)}</div>
       <div class="bst">${badgeSit(st)}</div>
@@ -1134,6 +1155,7 @@ function formBoleto(b) {
     <div class="alert" role="alert"></div>
     <label class="f"><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
     <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    ${fornCampo(b ? b.setor : setoresB()[0].id, b && b.fornecedorId)}
     <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${b ? esc(b.vencimento) : hojeStr()}"></label>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${b ? 'Salvar alterações' : 'Salvar boleto'}</button>
@@ -1147,22 +1169,24 @@ async function salvarBoleto(f, d) {
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) return erro('Escolha a data de vencimento.');
   if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  const ef = fornValida(d); if (ef) return erro(ef);
   btn.disabled = true;
   try {
+    const FF = await fornResolve(d);
     const B = Store.s.boletos, id = f.dataset.id;
     let lista;
     if (id) {
-      const mud = { descricao:desc, setor:d.setor, vencimento:venc, valor };
+      const mud = { descricao:desc, setor:d.setor, vencimento:venc, valor, ...FF };
       await colBoletos().doc(id).update(mud);
       lista = B.lista.map(x => x.id === id ? { ...x, ...mud } : x);
     } else {
-      const novo = { descricao:desc, setor:d.setor, vencimento:venc, valor, pago:false, pagoEm:null, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const novo = { descricao:desc, setor:d.setor, vencimento:venc, valor, ...FF, pago:false, pagoEm:null, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
       const ref = colBoletos().doc();
       await ref.set(novo);
       lista = B.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]);
     }
     fecharModal();
-    Store.set({ boletos:{ ...Store.s.boletos, lista, erro:null } });
+    Store.set({ boletos:{ ...Store.s.boletos, lista, erro:null }, forn:Store.s.forn });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 function comprimir(file) {
@@ -2632,7 +2656,7 @@ document.addEventListener('change', e => {
   if (t && t.name === 'tipo' && t.closest && t.closest('form[data-form=conta]')) { const f = t.closest('form'); f.querySelectorAll('[data-so]').forEach(x => x.classList.toggle('hide', x.dataset.so !== t.value)); }
 });
 document.addEventListener('change', e => {
-  const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento]') : null;
+  const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
   if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
