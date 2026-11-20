@@ -244,6 +244,11 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 .fnome b{color:var(--t1);font-weight:510;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fnome span{font-size:12px;color:var(--t3)}
 .ib.q{font-size:22px;line-height:1;color:var(--t1)}
+.fech{font-variant-numeric:tabular-nums}
+.fr{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr));gap:12px;align-items:center;padding:11px 20px;border-top:1px solid var(--line);font-size:14px}
+.fr.hd{background:rgba(255,255,255,.02);border-top:0;padding:10px 20px;color:var(--t3);font-size:12px;font-weight:510}
+.fr .fl{color:var(--t3)}.fr .fv{text-align:right;color:var(--t1)}
+.fr.b .fl,.fr.b .fv{font-weight:590}.fr.eco{background:rgba(62,207,142,.06)}.fr.eco .fl{color:var(--t1)}
 .tabs2{margin-bottom:0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .badge.warn{color:var(--warn);border-color:rgba(255,176,64,.3);background:rgba(255,176,64,.08)}
 .nb{margin-left:auto;font-size:11px;font-weight:590;color:#ff8fa3;background:rgba(255,92,122,.12);padding:1px 8px;border-radius:9999px}
@@ -318,6 +323,8 @@ input[type=date]{color-scheme:dark}
   .mrow .mc::before{content:attr(data-l);display:block;font-size:11px;color:var(--t3)}
   .mrow .fact{grid-column:1/-1}
   .dnav .dl{min-width:0;flex:1 1 100%;order:-1;text-align:left}
+  .fr{grid-template-columns:minmax(0,1.1fr) repeat(3,minmax(0,1fr));gap:4px;padding:10px 10px;font-size:11.5px}
+  .fr.hd .chip{height:32px;padding:0 6px;font-size:11px}
   .panel .ph2{flex-wrap:wrap;gap:10px 16px;padding:14px 16px}
   .panel .pb{padding:14px 16px}
   .rcards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -416,7 +423,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -556,7 +563,7 @@ async function rodarTestes(suite) {
 
 /* ============ dados do painel (lê o que os próximos blocos vão gravar) ============ */
 // Formato combinado: lancamentos {tipo:'venda'|'custo', setor, valor:número, data:'AAAA-MM-DD'}
-//                    metas/{setor_AAAA-MM} {vendas}   energia/{AAAA-MM} {kWh, valorUsina, valorDistribuidora}
+//                    metas/{setor_AAAA-MM} {vendas}   energia/{AAAA-MM_loja} {mes, loja, consumo, injetado, semDesconto, pagoUsina, pagoEnel}
 function somar(docs) {
   const t = { vendas:0, custos:0, n:0, set:{}, sem:{ vendas:[0,0,0,0], custos:[0,0,0,0] } };
   docs.forEach(d => {
@@ -578,11 +585,11 @@ async function buscarPainel(mes) {
   const [a, b, mt, en] = await Promise.all([
     faixa(mes), faixa(mesAdd(mes, -1)),
     db.collection(`empresas/${EMPRESA}/metas`).get(),
-    db.doc(`empresas/${EMPRESA}/energia/${mes}`).get()
+    db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get()
   ]);
   const metas = {};
   mt.docs.forEach(d => { if (d.id.endsWith('_' + mes)) metas[d.id.slice(0, -(mes.length + 1))] = Number(d.data().vendas) || 0; });
-  return { atual:somar(a.docs), anterior:somar(b.docs), metas, energia:en.exists ? en.data() : null };
+  return { atual:somar(a.docs), anterior:somar(b.docs), metas, energia:en.docs.length ? somaEn(en.docs.map(d => d.data())) : null };
 }
 let painelBusca = null;
 async function carregarPainel() {
@@ -1102,7 +1109,8 @@ async function salvarProd(f, d) {
 /* ============ metas, tarefas e energia ============ */
 // empresas/356/metas/{setor_AAAA-MM}: vendas (meta de vendas do mês, número; 0 = sem meta)
 // empresas/356/tarefas/{id}: titulo, setor, responsavel (texto), prazo ('AAAA-MM-DD' ou ''), feita (bool), feitaEm, criadoPorUid, criadoEm
-// empresas/356/energia/{AAAA-MM}: kWh, valorUsina, valorDistribuidora (economia = distribuidora − usina)
+// empresas/356/energia/{AAAA-MM_loja1|loja2}: mes, loja, consumo (kWh), injetado (kWh), semDesconto (R$), pagoUsina (R$, ao dono da usina), pagoEnel (R$)
+//   total c/ desconto = pagoUsina + pagoEnel; economia = semDesconto − total; % = economia ÷ semDesconto
 const colTar = () => db.collection(`empresas/${EMPRESA}/tarefas`);
 let metasBusca = false;
 async function carregarMetas() {
@@ -1223,70 +1231,104 @@ function tarefasCard(s) {
     ${ab.length > 4 ? `<p class="muted" style="font-size:12px;margin-top:10px">+ ${ab.length - 4} nos setores.</p>` : ''}</div>`;
 }
 
+const LOJAS = [{ id:'loja1', nome:'Loja 01' }, { id:'loja2', nome:'Loja 02' }];
+const nomeLoja = id => (LOJAS.find(l => l.id === id) || { nome:'—' }).nome;
+const n0 = v => Number(v) || 0;
+const totEn = x => n0(x.pagoUsina) + n0(x.pagoEnel);
+const ecoEn = x => n0(x.semDesconto) - totEn(x);
+const ecoPctEn = x => (n0(x.semDesconto) > 0 ? ecoEn(x) / n0(x.semDesconto) : 0);
+const cobEn = x => (n0(x.consumo) > 0 ? n0(x.injetado) / n0(x.consumo) : 0);
+function somaEn(arr) { return arr.reduce((a, x) => ({ consumo:a.consumo + n0(x.consumo), injetado:a.injetado + n0(x.injetado), semDesconto:a.semDesconto + n0(x.semDesconto), pagoUsina:a.pagoUsina + n0(x.pagoUsina), pagoEnel:a.pagoEnel + n0(x.pagoEnel) }), { consumo:0, injetado:0, semDesconto:0, pagoUsina:0, pagoEnel:0 }); }
+const kwh = v => n0(v).toLocaleString('pt-BR', { maximumFractionDigits:2 });
 let enBusca = false;
 async function carregarEnergia() {
   if (enBusca || Store.s.energia.lista) return;
   enBusca = true;
   try {
     const q = await db.collection(`empresas/${EMPRESA}/energia`).get();
-    const lista = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => b.id.localeCompare(a.id));
+    const lista = q.docs.map(d => ({ id:d.id, ...d.data() })).filter(x => x.loja && x.mes).sort((a, b) => b.id.localeCompare(a.id));
     Store.set({ energia:{ ...Store.s.energia, lista, erro:null } });
   } catch (e) { console.error(e); Store.set({ energia:{ ...Store.s.energia, lista:[], erro:'Não foi possível carregar os dados de energia. ' + msgErro(e) } }); }
   finally { enBusca = false; }
 }
-const ecoEn = x => (Number(x.valorDistribuidora) || 0) - (Number(x.valorUsina) || 0);
-const ecoPctEn = x => (Number(x.valorDistribuidora) > 0 ? ecoEn(x) / Number(x.valorDistribuidora) : 0);
 function energiaHTML(s) {
-  const E = s.energia, mes = E.mes;
-  const head = `<div class="ph"><div><div class="ctx">Créditos da usina solar contra a conta da distribuidora</div><h1>Energia solar</h1></div>
+  const E = s.energia, mes = E.mes, vis = E.loja;
+  const head = `<div class="ph"><div><div class="ctx">Economia com a usina solar nas duas lojas</div><h1>Energia solar</h1></div>
     <button class="btn pri" data-act="energiaNovo">+ Registrar mês</button></div>`;
   const erro = E.erro ? `<div class="alert err on" role="alert">${esc(E.erro)} <button class="btn ghost" data-act="energiaRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
   if (E.lista === null) return head + `<div class="stack"><div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
-  const cur = E.lista.find(x => x.id === mes), ano = mes.slice(0, 4);
-  const doAno = E.lista.filter(x => x.id.startsWith(ano)), ecoAno = doAno.reduce((a, x) => a + ecoEn(x), 0);
+  const noMes = E.lista.filter(x => x.mes === mes), sel = vis === 'todas' ? noMes : noMes.filter(x => x.loja === vis);
+  const ag = somaEn(sel), ano = mes.slice(0, 4);
+  const selAno = E.lista.filter(x => x.mes.startsWith(ano) && (vis === 'todas' || x.loja === vis));
+  const ecoAno = selAno.reduce((a, x) => a + ecoEn(x), 0), mesesAno = new Set(selAno.map(x => x.mes)).size;
   const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
-  const cards = cur
-    ? `<div class="rcards">${card('var(--warn)', 'Créditos da usina', (Number(cur.kWh) || 0).toLocaleString('pt-BR') + ' kWh', 'no mês')}${card('#b98cff', 'Pago à usina', brl(cur.valorUsina), 'valor da fatura da usina')}${card('var(--err)', 'Pela distribuidora', brl(cur.valorDistribuidora), 'quanto sairia sem a usina')}${card('var(--ok)', 'Economia do mês', brl(ecoEn(cur)), pct(ecoPctEn(cur)) + ' a menos')}</div>`
-    : `<div class="box vazio-mini"><p>Nenhum dado de energia em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Registrar mês" para lançar os kWh e os dois valores.</p></div>`;
-  const nav = `<div class="tabs2"><div class="mes" role="group" aria-label="Mês"><button data-act="emes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="emes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>
-    <span class="muted" style="font-size:13px">Economia em ${esc(ano)}: <b style="color:var(--ok)">${brl(ecoAno)}</b> em ${doAno.length} ${doAno.length === 1 ? 'mês' : 'meses'}</span></div>`;
-  const rows = E.lista.map(x => `<div class="mrow" role="row">
-      <div class="fnome"><b>${esc(mesNome(x.id, true))}</b><span>${(Number(x.kWh) || 0).toLocaleString('pt-BR')} kWh</span></div>
-      <div class="mc" data-l="kWh">${(Number(x.kWh) || 0).toLocaleString('pt-BR')}</div><div class="mc" data-l="Usina">${brl(x.valorUsina)}</div><div class="mc" data-l="Distribuidora">${brl(x.valorDistribuidora)}</div>
-      <div class="mc" data-l="Economia" style="color:${ecoEn(x) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(x))}</div><div class="mc" data-l="%">${pct(ecoPctEn(x))}</div>
-      <div class="fact"><button class="ib" data-act="energiaEditar" data-id="${esc(x.id)}" aria-label="Editar ${esc(mesNome(x.id, true))}">${ico('edit')}</button></div></div>`).join('');
-  return head + erro + `<div class="stack">${nav}${cards}
-    <section class="panel" style="margin:0"><div class="ph2"><h3>Histórico</h3></div><div role="table">
-      <div class="mrow hd" role="row"><span>Mês</span><span style="text-align:right">kWh</span><span style="text-align:right">Usina</span><span style="text-align:right">Distribuidora</span><span style="text-align:right">Economia</span><span style="text-align:right">%</span><span></span></div>
-      ${rows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Nenhum mês registrado ainda.</div>`}</div></section></div>`;
+  const nav = `<div class="tabs2"><div class="seg" role="group" aria-label="Loja"><button class="${vis === 'todas' ? 'on' : ''}" data-act="eloja" data-l="todas">Total das lojas</button>${LOJAS.map(l => `<button class="${vis === l.id ? 'on' : ''}" data-act="eloja" data-l="${l.id}">${l.nome}</button>`).join('')}</div>
+    <div class="mes" role="group" aria-label="Mês"><button data-act="emes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(mes, false))}</span><button data-act="emes" data-d="1" aria-label="Próximo mês" ${mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div></div>`;
+  const cards = sel.length
+    ? `<div class="rcards">${card('var(--ok)', 'Economia do mês', `<span style="color:${ecoEn(ag) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(ag))}</span>`, pct(ecoPctEn(ag)) + ' a menos que sem desconto')}${card('#b98cff', 'Total pago', brl(totEn(ag)), n0(ag.consumo) > 0 ? brl(totEn(ag) / ag.consumo) + ' por kWh' : 'usina + Enel')}${card('var(--err)', 'Sem desconto', brl(ag.semDesconto), n0(ag.consumo) > 0 ? brl(ag.semDesconto / ag.consumo) + ' por kWh' : 'conta cheia')}${card('var(--warn)', 'Cobertura solar', pct(cobEn(ag)), kwh(ag.injetado) + ' de ' + kwh(ag.consumo) + ' kWh')}</div>`
+    : `<div class="box vazio-mini"><p>Nenhum dado de energia em ${esc(mesNome(mes, true).toLowerCase())}${vis === 'todas' ? '' : ' para a ' + esc(nomeLoja(vis))}. Use "+ Registrar mês" para lançar.</p></div>`;
+  // fechamento do mês (modelo da planilha, uma coluna por loja)
+  const rec = id => noMes.find(x => x.loja === id), tot = somaEn(noMes);
+  const col = (fn, l) => { const r = l === 'tot' ? (noMes.length ? tot : null) : rec(l); return r ? fn(r) : '<span class="muted">—</span>'; };
+  const linhas = [
+    ['Consumo (kWh)', r => kwh(r.consumo)], ['Injetado (kWh)', r => kwh(r.injetado)], ['S/ desconto', r => brl(r.semDesconto)],
+    ['Pago ao dono da usina', r => brl(r.pagoUsina)], ['Pago à Enel', r => brl(r.pagoEnel)], ['Total c/ desconto', r => brl(totEn(r)), 'b'],
+    ['Economia (R$)', r => `<span style="color:${ecoEn(r) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(r))}</span>`, 'eco'], ['Economia (%)', r => pct(ecoPctEn(r)), 'eco'], ['Cobertura solar', r => pct(cobEn(r))]
+  ].map(([l, fn, k]) => `<div class="fr ${k || ''}" role="row"><span class="fl">${l}</span>${['loja1', 'loja2', 'tot'].map(c => `<span class="fv">${col(fn, c)}</span>`).join('')}</div>`).join('');
+  const fech = `<section class="panel" style="margin:0"><div class="ph2"><h3>Fechamento de ${esc(mesNome(mes, true).toLowerCase())}</h3></div>
+    <div class="fech" role="table"><div class="fr hd" role="row"><span></span>${LOJAS.map(l => `<span class="fv"><button class="chip" data-act="energiaLancar" data-l="${l.id}" data-m="${mes}">${rec(l.id) ? 'Editar' : 'Lançar'} ${l.nome}</button></span>`).join('')}<span class="fv">Total</span></div>${linhas}</div></section>`;
+  // histórico
+  const meses = Array.from(new Set(E.lista.map(x => x.mes))).sort().reverse();
+  const hist = meses.map(m => {
+    const rs = E.lista.filter(x => x.mes === m && (vis === 'todas' || x.loja === vis)); if (!rs.length) return '';
+    const a = somaEn(rs), r1 = rs.length === 1 && vis !== 'todas' ? rs[0] : null;
+    return `<div class="mrow" role="row"><div class="fnome"><b>${esc(mesNome(m, true))}</b><span>${vis === 'todas' ? rs.map(x => nomeLoja(x.loja)).join(' + ') : nomeLoja(vis)}</span></div>
+      <div class="mc" data-l="Consumo">${kwh(a.consumo)}</div><div class="mc" data-l="Injetado">${kwh(a.injetado)}</div><div class="mc" data-l="Total pago">${brl(totEn(a))}</div>
+      <div class="mc" data-l="Economia" style="color:${ecoEn(a) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(a))}</div><div class="mc" data-l="%">${pct(ecoPctEn(a))}</div>
+      <div class="fact">${r1 ? `<button class="ib" data-act="energiaEditar" data-id="${esc(r1.id)}" aria-label="Editar ${esc(mesNome(m, true))}">${ico('edit')}</button>` : ''}</div></div>`;
+  }).join('');
+  const histP = `<section class="panel" style="margin:0"><div class="ph2"><h3>Histórico · ${vis === 'todas' ? 'total das lojas' : esc(nomeLoja(vis))}</h3><span class="muted" style="font-size:13px">Economia em ${esc(ano)}: <b style="color:var(--ok)">${brl(ecoAno)}</b> em ${mesesAno} ${mesesAno === 1 ? 'mês' : 'meses'}</span></div><div role="table">
+      <div class="mrow hd" role="row"><span>Mês</span><span style="text-align:right">Consumo</span><span style="text-align:right">Injetado</span><span style="text-align:right">Total pago</span><span style="text-align:right">Economia</span><span style="text-align:right">%</span><span></span></div>
+      ${hist || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Nenhum mês registrado ainda.</div>`}</div></section>`;
+  return head + erro + `<div class="stack">${nav}${cards}${fech}${histP}</div>`;
 }
-function formEnergia(x, mes) {
+function formEnergia(x, mes, loja) {
   const n = v => v === undefined || v === null ? '' : esc(String(v).replace('.', ','));
+  const lj = x ? x.loja : (loja || 'loja1');
   return `<form data-form="energia" data-id="${x ? esc(x.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
-    <label class="f"><span>Mês</span><input name="mes" type="month" value="${esc(x ? x.id : mes)}" max="${mesAtual()}" ${x ? 'disabled' : ''}></label>
-    <label class="f"><span>Créditos recebidos da usina (kWh)</span><input name="kWh" inputmode="decimal" value="${x ? n(x.kWh) : ''}" placeholder="1.850" autocomplete="off"></label>
-    <label class="f"><span>Valor pago à usina (R$)</span><input name="valorUsina" inputmode="decimal" value="${x ? n(x.valorUsina) : ''}" placeholder="1.100,00" autocomplete="off"></label>
-    <label class="f"><span>Quanto a distribuidora cobraria pelos mesmos kWh (R$)</span><input name="valorDistribuidora" inputmode="decimal" value="${x ? n(x.valorDistribuidora) : ''}" placeholder="1.650,00" autocomplete="off"></label>
+    <label class="f"><span>Loja</span><select name="loja" ${x ? 'disabled' : ''}>${LOJAS.map(l => `<option value="${l.id}" ${lj === l.id ? 'selected' : ''}>${l.nome}</option>`).join('')}</select></label>
+    <label class="f"><span>Mês</span><input name="mes" type="month" value="${esc(x ? x.mes : mes)}" max="${mesAtual()}" ${x ? 'disabled' : ''}></label>
+    <label class="f"><span>Consumo (kWh)</span><input name="consumo" inputmode="decimal" value="${x ? n(x.consumo) : ''}" placeholder="1.460" autocomplete="off"></label>
+    <label class="f"><span>Injetado (kWh)</span><input name="injetado" inputmode="decimal" value="${x ? n(x.injetado) : ''}" placeholder="874" autocomplete="off"></label>
+    <label class="f"><span>Valor sem desconto (R$)</span><input name="semDesconto" inputmode="decimal" value="${x ? n(x.semDesconto) : ''}" placeholder="2.075,11" autocomplete="off"></label>
+    <label class="f"><span>Pago ao dono da usina (R$)</span><input name="pagoUsina" inputmode="decimal" value="${x ? n(x.pagoUsina) : ''}" placeholder="611,80" autocomplete="off"></label>
+    <label class="f"><span>Pago à Enel (R$)</span><input name="pagoEnel" inputmode="decimal" value="${x ? n(x.pagoEnel) : ''}" placeholder="1.212,33" autocomplete="off"></label>
+    <div class="eco" id="enPrev" aria-live="polite" style="margin-bottom:12px">${x ? prevEnergia(x) : 'Total e economia aparecem aqui conforme você digita.'}</div>
     <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar mês'}</button>
     ${x && Store.s.perfil.papel === 'admin' ? `<button type="button" class="btn bad full" data-act="energiaApagar" data-id="${esc(x.id)}">Apagar mês</button>` : ''}</div></form>`;
 }
+function prevEnergia(r) { return `Total c/ desconto ${brl(totEn(r))} · economia ${brl(ecoEn(r))} (${pct(ecoPctEn(r))})`; }
 async function salvarEnergia(f, d) {
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
-  const id = f.dataset.id || d.mes || f.querySelector('[name=mes]').value;
-  const kWh = parseValor(d.kWh), vu = parseValor(d.valorUsina), vd = parseValor(d.valorDistribuidora);
-  if (!/^\d{4}-\d{2}$/.test(id)) return erro('Escolha o mês.');
-  if (id > mesAtual()) return erro('O mês não pode ser no futuro.');
-  if (!(kWh > 0)) return erro('Digite os kWh recebidos, maior que zero. Exemplo: 1.850');
-  if (!(vu >= 0)) return erro('Digite o valor pago à usina. Exemplo: 1.100,00');
-  if (!(vd > 0)) return erro('Digite quanto a distribuidora cobraria, maior que zero. Exemplo: 1.650,00');
+  const ex = f.dataset.id ? Store.s.energia.lista.find(x => x.id === f.dataset.id) : null;
+  const loja = ex ? ex.loja : (d.loja || f.querySelector('[name=loja]').value), mes = ex ? ex.mes : (d.mes || f.querySelector('[name=mes]').value);
+  const consumo = parseValor(d.consumo), injetado = parseValor(d.injetado), semDesconto = parseValor(d.semDesconto), pagoUsina = parseValor(d.pagoUsina), pagoEnel = parseValor(d.pagoEnel);
+  if (!LOJAS.some(l => l.id === loja)) return erro('Escolha a loja.');
+  if (!/^\d{4}-\d{2}$/.test(mes)) return erro('Escolha o mês.');
+  if (mes > mesAtual()) return erro('O mês não pode ser no futuro.');
+  if (!(consumo > 0)) return erro('Digite o consumo em kWh, maior que zero. Exemplo: 1.460');
+  if (!(injetado >= 0)) return erro('Digite os kWh injetados (pode ser 0). Exemplo: 874');
+  if (!(semDesconto > 0)) return erro('Digite o valor sem desconto, maior que zero. Exemplo: 2.075,11');
+  if (!(pagoUsina >= 0)) return erro('Digite quanto pagou ao dono da usina. Exemplo: 611,80');
+  if (!(pagoEnel >= 0)) return erro('Digite quanto pagou à Enel. Exemplo: 1.212,33');
   btn.disabled = true;
   try {
-    const E = Store.s.energia, mud = { kWh, valorUsina:vu, valorDistribuidora:vd, atualizadoPorUid:Store.s.user.uid };
+    const E = Store.s.energia, id = mes + '_' + loja, mud = { mes, loja, consumo, injetado, semDesconto, pagoUsina, pagoEnel, atualizadoPorUid:Store.s.user.uid };
     await db.doc(`empresas/${EMPRESA}/energia/${id}`).set(mud, { merge:true });
     const lista = E.lista.filter(x => x.id !== id).concat([{ ...(E.lista.find(x => x.id === id) || {}), ...mud, id }]).sort((a, b) => b.id.localeCompare(a.id));
-    invalidarPainel(); fecharModal(); Store.set({ energia:{ ...E, mes:id, lista, erro:null } });
+    invalidarPainel(); fecharModal(); Store.set({ energia:{ ...E, mes, lista, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 
@@ -1442,14 +1484,14 @@ function painelHTML(s, nomeCurto) {
   const semDados = a.n === 0;
   const margem = a.vendas > 0 ? pct(lucro / a.vendas) : null;
   const en = d.energia;
-  const eco = en ? (Number(en.valorDistribuidora) || 0) - (Number(en.valorUsina) || 0) : 0;
-  const ecoPct = en && Number(en.valorDistribuidora) > 0 ? eco / Number(en.valorDistribuidora) : 0;
+  const eco = en ? ecoEn(en) : 0;
+  const ecoPct = en ? ecoPctEn(en) : 0;
   const kpi = (cls, label, valor, dl, sub) => `<div class="box kpi hov ${cls}"><div class="top"><span>${label}</span>${dl}</div><div class="val">${valor}</div><div class="sub">${sub}</div></div>`;
   const kpis = [
     kpi('', 'Vendas', brl(a.vendas), delta(a.vendas, b.vendas), semDados ? 'Sem lançamentos neste mês' : (b.vendas > 0 ? 'vs. mês anterior (' + brl(b.vendas) + ')' : 'primeiro mês com lançamentos')),
     kpi('', 'Custos', brl(a.custos), delta(a.custos, b.custos), semDados ? 'Sem lançamentos neste mês' : 'compras, folha, freelancers, contas'),
     kpi('hero', 'Lucro', brl(lucro), lucroAnt > 0 && lucro > 0 ? delta(lucro, lucroAnt) : '', margem ? 'margem de ' + margem : 'aparece com vendas lançadas'),
-    kpi('', 'Economia solar', brl(en ? eco : 0), en ? `<span class="dl up">${pct(ecoPct)}</span>` : '', en ? (Number(en.kWh) || 0).toLocaleString('pt-BR') + ' kWh da usina' : 'Sem dados de energia neste mês')
+    kpi('', 'Economia solar', brl(en ? eco : 0), en ? `<span class="dl up">${pct(ecoPct)}</span>` : '', en ? (Number(en.injetado) || 0).toLocaleString('pt-BR') + ' kWh injetados' : 'Sem dados de energia neste mês')
   ].join('');
 
   const setCards = SETORES.map(x => {
@@ -1493,9 +1535,9 @@ function painelHTML(s, nomeCurto) {
       ${tarefasCard(s)}
       ${freelancersCard(s)}
       <div class="box vazio-mini"><div class="bh" style="margin:0"><h2>Energia solar</h2><a href="#/energia" style="font-size:13px;font-weight:510;text-decoration:none">Abrir</a></div>${en
-        ? `<div><span class="big">${(Number(en.kWh) || 0).toLocaleString('pt-BR')} kWh</span> <span class="muted" style="font-size:13px">créditos da usina no mês</span></div>
-           <p>Pela distribuidora sairia <b style="color:var(--t1)">${brl(en.valorDistribuidora)}</b>. Pela usina: <b style="color:var(--t1)">${brl(en.valorUsina)}</b>.</p>
-           <div class="eco">Economia de ${brl(eco)} (${pct(ecoPct)})</div>`
+        ? `<div><span class="big">${brl(eco)}</span> <span class="muted" style="font-size:13px">economizados no mês</span></div>
+           <p>Sem desconto seria <b style="color:var(--t1)">${brl(en.semDesconto)}</b>. Pagando usina e Enel: <b style="color:var(--t1)">${brl(totEn(en))}</b>.</p>
+           <div class="eco">${pct(ecoPct)} a menos que sem desconto</div>`
         : '<p>Sem dados de energia em ' + esc(mesLabel.toLowerCase()) + '. A economia com a usina aparece depois do primeiro lançamento do mês.</p>'}</div>
     </section>
   </div>`;
@@ -1775,13 +1817,18 @@ const acoes = {
     try { await colTar().doc(id).delete(); fecharModal(); Store.set({ tar:{ ...T, lista:T.lista.filter(x => x.id !== id), erro:null } }); }
     catch (e) { fecharModal(); Store.set({ tar:{ ...T, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
-  energiaNovo() { abrirModal('Registrar mês de energia', formEnergia(null, Store.s.energia.mes)); },
-  energiaEditar(el) { const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (x) abrirModal('Editar energia de ' + mesNome(x.id, true).toLowerCase(), formEnergia(x)); },
+  energiaNovo() { const E = Store.s.energia; abrirModal('Registrar mês de energia', formEnergia(null, E.mes, E.loja === 'todas' ? 'loja1' : E.loja)); },
+  energiaLancar(el) {
+    const id = el.dataset.m + '_' + el.dataset.l, x = (Store.s.energia.lista || []).find(e => e.id === id);
+    if (x) abrirModal('Editar ' + nomeLoja(x.loja) + ' · ' + mesNome(x.mes, true).toLowerCase(), formEnergia(x)); else abrirModal('Registrar ' + nomeLoja(el.dataset.l), formEnergia(null, el.dataset.m, el.dataset.l));
+  },
+  energiaEditar(el) { const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (x) abrirModal('Editar ' + nomeLoja(x.loja) + ' · ' + mesNome(x.mes, true).toLowerCase(), formEnergia(x)); },
   emes(el) { const E = Store.s.energia, novo = mesAdd(E.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ energia:{ ...E, mes:novo } }); },
-  energiaRecarregar() { Store.set({ energia:{ lista:null, mes:Store.s.energia.mes, erro:null } }); },
+  eloja(el) { Store.set({ energia:{ ...Store.s.energia, loja:el.dataset.l } }); },
+  energiaRecarregar() { const E = Store.s.energia; Store.set({ energia:{ lista:null, mes:E.mes, loja:E.loja, erro:null } }); },
   energiaApagar(el) {
     const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (!x) return;
-    abrirModal('Apagar mês de energia', `<p style="font-size:14px;margin-bottom:16px">Apagar os dados de energia de <b style="color:var(--t1)">${esc(mesNome(x.id, true).toLowerCase())}</b>? Isso não dá para desfazer.</p>
+    abrirModal('Apagar mês de energia', `<p style="font-size:14px;margin-bottom:16px">Apagar os dados de energia da <b style="color:var(--t1)">${esc(nomeLoja(x.loja))}</b> em <b style="color:var(--t1)">${esc(mesNome(x.mes, true).toLowerCase())}</b>? Isso não dá para desfazer.</p>
       <div class="acoes"><button class="btn bad full" data-act="energiaApagarOk" data-id="${esc(x.id)}">Apagar mês</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
   },
   async energiaApagarOk(el) {
@@ -1857,6 +1904,12 @@ document.addEventListener('submit', async e => {
 });
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal .md')) fecharModal(); });
+document.addEventListener('input', e => {
+  const f = e.target.closest && e.target.closest('form[data-form=energia]'); if (!f) return;
+  const g = n => parseValor(f.querySelector('[name=' + n + ']').value), sd = g('semDesconto'), pu = g('pagoUsina'), pe = g('pagoEnel');
+  const box = f.querySelector('#enPrev'); if (!box) return;
+  box.textContent = (sd > 0 && pu >= 0 && pe >= 0) ? prevEnergia({ semDesconto:sd, pagoUsina:pu, pagoEnel:pe }) : 'Total e economia aparecem aqui conforme você digita.';
+});
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
 
 /* ============ service worker (offline do "esqueleto") ============ */
