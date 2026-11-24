@@ -426,6 +426,7 @@ input[type=date]{color-scheme:dark}
 <body>
 <div id="modal"></div>
 <input type="file" id="arq" accept="image/*" hidden>
+<input type="file" id="arqPes" accept="image/*,application/pdf" hidden>
 <div id="root"><div class="center"><div class="sk"><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -490,6 +491,7 @@ const ICON = {
   energia:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   esq:'<path d="M15 6l-6 6 6 6"/>',
   dir:'<path d="M9 6l6 6-6 6"/>',
+  clip:'<path d="M21 11.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.4 3.4 0 014.8 4.8l-8.6 8.6a1.7 1.7 0 01-2.4-2.4l7.9-7.9"/>',
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
@@ -2174,8 +2176,8 @@ function pessoalHTML(s) {
   const rows = ls.map(x => `<div class="brow" role="row">
       <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}${Number(x.juros) > 0 ? ' · juros ' + esc(brl(x.juros)) : ''}</span></div>
       <div class="bven">${dataBR(x.data)}</div><div class="bval" style="color:${x.tipo === 'entrada' ? 'var(--ok)' : 'var(--t1)'}">${x.tipo === 'entrada' ? '+' : '−'}${brl(x.valor)}</div><div class="bst"><span class="badge ${x.tipo === 'entrada' ? 'ok' : ''}">${x.tipo === 'entrada' ? 'Entrada' : 'Gasto'}</span></div>
-      <div class="bact noprint"><button class="ib" data-act="pesEditar" data-id="${esc(x.id)}" aria-label="Editar">${ico('edit')}</button></div></div>`).join('');
-  const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table" class="compacto" style="--act:52px">
+      <div class="bact noprint"><button class="ib ${x.nAnexos > 0 ? 'tem' : ''}" data-act="pesAnexos" data-id="${esc(x.id)}" aria-label="${x.nAnexos > 0 ? 'Ver anexos' : 'Anexar foto ou arquivo'}">${ico('clip')}</button><button class="ib" data-act="pesEditar" data-id="${esc(x.id)}" aria-label="Editar">${ico('edit')}</button></div></div>`).join('');
+  const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table" class="compacto" style="--act:100px">
       <div class="brow hd" role="row"><span>Descrição</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span class="noprint"></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nada lançado em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Novo gasto" ou "+ Nova entrada".</div>`}</div></section>`;
   const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão · Pessoal</b><span>Extrato de ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
@@ -2201,7 +2203,7 @@ function formPes(m, tipoPadrao) {
     ${jurosCampo(m && m.juros, tipo === 'gasto' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${m ? esc(m.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Feira da semana, aluguel apto 12" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${m ? 'Salvar alterações' : 'Salvar'}</button>
-    ${m ? `<button type="button" class="btn bad full" data-act="pesApagar" data-id="${esc(m.id)}">Apagar</button>` : ''}</div></form>`;
+    ${m ? `<button type="button" class="btn full" data-act="pesAnexos" data-id="${esc(m.id)}">${m.nAnexos > 0 ? 'Anexos (' + m.nAnexos + ')' : 'Anexar foto ou arquivo'}</button><button type="button" class="btn bad full" data-act="pesApagar" data-id="${esc(m.id)}">Apagar</button>` : ''}</div></form>`;
 }
 async function salvarPes(f, d) {
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
@@ -2228,6 +2230,42 @@ async function salvarPes(f, d) {
     if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
     fecharModal(); Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+// pessoal/356/anexos/{id}: movId, nome, tipo ('img'|'pdf'), dataUrl, ord, em, por (no banco, sem Storage; até 5 por lançamento)
+const colPesAnx = () => db.collection(`pessoal/${EMPRESA}/anexos`);
+const MAX_ANX = 5, MAX_ANX_CHARS = 900000;
+let pesAnxAlvo = null, pesAnxLista = [];
+const kb = n => Math.max(1, Math.round(n / 1024)) + ' KB';
+function lerDataUrl(file) { return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => ko(new Error('Não consegui ler o arquivo.')); r.readAsDataURL(file); }); }
+function pesAnxHTML() {
+  const itens = pesAnxLista.map(x => `<div class="frow" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      ${x.tipo === 'img' ? `<img src="${x.dataUrl}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 auto">` : '<span class="badge" style="flex:0 0 auto">PDF</span>'}
+      <span style="flex:1 1 auto;min-width:0;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.nome)}">${esc(x.nome)}<br><small class="muted">${kb(x.dataUrl.length * 3 / 4)}</small></span>
+      <button class="btn" data-act="pesAnxAbrir" data-id="${esc(x.id)}" style="flex:0 0 auto">${x.tipo === 'img' ? 'Ver' : 'Baixar'}</button>
+      <button class="ib" data-act="pesAnxDel" data-id="${esc(x.id)}" aria-label="Remover ${esc(x.nome)}">${ico('close')}</button></div>`).join('');
+  return `<p class="muted" style="font-size:13px">Fotos e PDF, até ${MAX_ANX} por lançamento. PDF até 650 KB; fotos são comprimidas sozinhas. Só você e a Eliana veem.</p>
+    <div class="alert" role="alert" id="anxAlert"></div>${itens || '<p class="muted" style="font-size:14px;margin:12px 0">Nenhum anexo ainda.</p>'}
+    <div class="acoes"><button class="btn pri full" data-act="pesAnxAdd">Adicionar foto ou arquivo</button></div>`;
+}
+function pesAnxErro(m) { const av = $('#anxAlert'); if (av) { av.className = 'alert err on'; av.textContent = m; } }
+function pesAnxAtualiza(movId, n) {
+  const P = Store.s.pes; Store.set({ pes:{ ...P, lista:(P.lista || []).map(x => x.id === movId ? { ...x, nAnexos:n } : x) } });
+  abrirModal('Anexos', pesAnxHTML());
+}
+async function enviarAnexoPes(file) {
+  const movId = pesAnxAlvo; if (!movId || !file) return;
+  if (pesAnxLista.length >= MAX_ANX) return pesAnxErro(`Limite de ${MAX_ANX} anexos por lançamento. Remova um para adicionar outro.`);
+  try {
+    let tipo, dataUrl;
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      tipo = 'pdf'; dataUrl = await lerDataUrl(file);
+      if (dataUrl.length > MAX_ANX_CHARS) return pesAnxErro('Esse PDF é grande demais (máximo 650 KB). Tente um arquivo menor ou tire uma foto.');
+    } else if (/^image\//.test(file.type)) { tipo = 'img'; dataUrl = await comprimir(file); }
+    else return pesAnxErro('Use uma foto (JPG ou PNG) ou um PDF.');
+    const ref = colPesAnx().doc(), reg = { movId, nome:(file.name || (tipo === 'pdf' ? 'arquivo.pdf' : 'foto.jpg')).slice(0, 80), tipo, dataUrl, ord:Date.now(), em:TS(), por:Store.s.user.uid };
+    const b = db.batch(); b.set(ref, reg); b.update(colPes().doc(movId), { nAnexos:pesAnxLista.length + 1 }); await b.commit();
+    pesAnxLista = pesAnxLista.concat([{ ...reg, id:ref.id }]); pesAnxAtualiza(movId, pesAnxLista.length);
+  } catch (e) { pesAnxErro(msgErro(e)); }
 }
 function catsModalHTML() {
   const P = Store.s.pes;
@@ -2604,7 +2642,7 @@ const acoes = {
     const id = el.dataset.id, C = Store.s[kC()];
     try {
       const snap = await colContasPag().where('contaId', '==', id).get();
-      const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); b.delete(colContas().doc(id)); await b.commit();
+      const b = db.batch(); snap.docs.forEach(d => b.delete(colPesAnx().doc(d.id))); b.delete(colContas().doc(id)); await b.commit();
       const pag = { ...C.pag }; snap.docs.forEach(d => { delete pag[d.id]; });
       fecharModal(); Store.set({ [kC()]:{ ...C, defs:C.defs.filter(x => x.id !== id), pag, erro:null } });
     } catch (e) { fecharModal(); Store.set({ [kC()]:{ ...C, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
@@ -2821,6 +2859,33 @@ const acoes = {
     const nc = f.querySelector('[data-novacat]'); if (nc) nc.classList.add('hide');
     const jj = f.querySelector('[data-juros]'); if (jj) jj.classList.toggle('hide', tp !== 'gasto');
   },
+  async pesAnexos(el) {
+    const id = el.dataset.id; pesAnxAlvo = id; pesAnxLista = [];
+    abrirModal('Anexos', '<div id="anxBox"><div class="skel" style="width:50%"></div></div>');
+    try {
+      const q = await colPesAnx().where('movId', '==', id).get();
+      pesAnxLista = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.ord || 0) - (b.ord || 0));
+      abrirModal('Anexos', pesAnxHTML());
+    } catch (e) { const bx = $('#anxBox'); if (bx) bx.innerHTML = `<div class="alert err on">${esc('Não foi possível carregar os anexos. ' + msgErro(e))}</div>`; }
+  },
+  pesAnxAdd() { $('#arqPes').value = ''; $('#arqPes').click(); },
+  async pesAnxAbrir(el) {
+    const x = pesAnxLista.find(a => a.id === el.dataset.id); if (!x) return;
+    try {
+      const [cab, b64] = x.dataUrl.split(','), mime = (cab.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream', bin = atob(b64), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([u8], { type:mime })), a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener'; if (x.tipo === 'pdf') a.download = x.nome; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { pesAnxErro('Não consegui abrir o arquivo. ' + msgErro(e)); }
+  },
+  async pesAnxDel(el) {
+    const id = el.dataset.id, movId = pesAnxAlvo;
+    try {
+      const b = db.batch(); b.delete(colPesAnx().doc(id)); b.update(colPes().doc(movId), { nAnexos:Math.max(0, pesAnxLista.length - 1) }); await b.commit();
+      pesAnxLista = pesAnxLista.filter(x => x.id !== id); pesAnxAtualiza(movId, pesAnxLista.length);
+    } catch (e) { pesAnxErro('Não foi possível remover. ' + msgErro(e)); }
+  },
   pesApagar(el) {
     const m = (Store.s.pes.lista || []).find(x => x.id === el.dataset.id); if (!m) return;
     abrirModal('Apagar lançamento', `<p style="font-size:14px;margin-bottom:16px">Apagar <b style="color:var(--t1)">${esc(m.descricao || m.categoria || 'este lançamento')}</b> de ${brl(m.valor)}? Isso não dá para desfazer.</p>
@@ -2828,7 +2893,12 @@ const acoes = {
   },
   async pesApagarOk(el) {
     const id = el.dataset.id, P = Store.s.pes;
-    try { await colPes().doc(id).delete(); fecharModal(); Store.set({ pes:{ ...P, lista:P.lista.filter(x => x.id !== id), erro:null, histChave:null } }); }
+    try {
+      const m = P.lista.find(x => x.id === id), b = db.batch();
+      if (m && m.nAnexos > 0) (await colPesAnx().where('movId', '==', id).get()).docs.forEach(d => b.delete(colPesAnx().doc(d.id)));
+      b.delete(colPes().doc(id)); await b.commit();
+      fecharModal(); Store.set({ pes:{ ...P, lista:P.lista.filter(x => x.id !== id), erro:null, histChave:null } });
+    }
     catch (e) { fecharModal(); Store.set({ pes:{ ...P, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
   pesCats() { abrirModal('Categorias', catsModalHTML()); },
@@ -2962,6 +3032,7 @@ document.addEventListener('change', e => {
   const r = (Store.s.vendas.porMes || {})[t.value]; f.querySelector('[name=valor]').value = valorBR(r && r.valor); f.querySelector('[name=obs]').value = r ? r.obs : '';
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
+document.addEventListener('change', e => { if (e.target.id === 'arqPes' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; enviarAnexoPes(f); } });
 
 /* ============ service worker (offline do "esqueleto") ============ */
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
