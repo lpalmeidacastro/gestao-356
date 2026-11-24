@@ -438,6 +438,7 @@ const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const ehAdminFixo = u => !!u && !!u.email && ADMINS.includes(u.email.toLowerCase());
+const ehDonoPes = () => ehAdminFixo(Store.s.user);
 function novoId() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const r = new Uint32Array(20); crypto.getRandomValues(r);
@@ -1572,20 +1573,22 @@ function formLanc(l, setorPadrao, tipoPadrao) {
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
-    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${!l && ehDonoPes() ? '<option value="__pes">Pessoal (só Luiz e Eliana)</option>' : ''}</select></label>
     <div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
       <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${optsForn}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
       <label class="f ${semForn ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
     </div>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
-    <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
+    <label class="f" data-catemp><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
+    ${!l && ehDonoPes() ? `<label class="f hide" data-catpes><span>Categoria pessoal</span><select name="categoriaPes">${opcoesCat('gasto', '')}</select></label>` : ''}
     ${jurosCampo(l && l.juros, tipo === 'custo' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${l ? esc(l.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Fechamento do caixa, NF 4821" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${l ? 'Salvar alterações' : 'Salvar lançamento'}</button>
     ${l && admin ? `<button type="button" class="btn bad full" data-act="lancApagar" data-id="${esc(l.id)}">Apagar lançamento</button>` : ''}</div></form>`;
 }
 async function salvarLanc(f, d) {
+  if (d.setor === '__pes' && ehDonoPes() && !f.dataset.id) return salvarPes(f, { tipo:'gasto', valor:d.valor, data:d.data, categoria:d.categoriaPes || '', descricao:d.descricao, juros:d.juros });
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const valor = parseValor(d.valor), data = d.data || '';
@@ -2619,7 +2622,7 @@ const acoes = {
       fecharModal(); Store.set({ free:{ ...Store.s.free, pres, erro:null } });
     } catch (e) { fecharModal(); Store.set({ free:{ ...Store.s.free, erro:'Não foi possível marcar como pago. ' + msgErro(e) } }); }
   },
-  lancNovo(el) { abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || subAtualId())); },
+  async lancNovo(el) { if (ehDonoPes() && !Store.s.pes.cats) await carregarPes(); abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || subAtualId())); },
   empSub(el) { history.replaceState(null, '', '#/empresa'); Store.set({ rota:'empresa', emp:{ ...Store.s.emp, sub:el.dataset.s } }); },
   subsManage() { abrirModal('Subsetores', subsModalHTML()); },
   subArquivar(el) { arquivarSub(el.dataset.id, true); },
@@ -2866,7 +2869,7 @@ document.addEventListener('change', e => {
 document.addEventListener('change', e => {
   const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
-  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); }
+  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
 });
 document.addEventListener('change', e => {
