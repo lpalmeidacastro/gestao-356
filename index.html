@@ -36,6 +36,7 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --mono:ui-monospace,'SF Mono',Menlo,monospace;
   --ease:cubic-bezier(.2,.8,.2,1);
   --w1:rgba(255,255,255,.02); --w2:rgba(255,255,255,.05); --btnbg:#16161c; --pur:#b98cff; --errt:#ff8fa3; --navoff2:#a3a5b2; --mask:rgba(0,0,0,.6); --navoff:#a3a5b2;
+  --s1:#a47bff; --s2:#ec4fb0; --s3:#ff5d6c; --s4:#ffa94d; --s5:#3cc9b4; --s6:#5aa9ff; --s7:#d4c15a; --s0:#80828f;
   --okbg:rgba(62,207,142,.12); --sombra:none; color-scheme:dark;
 }
 :root[data-tema=claro]{
@@ -44,6 +45,7 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --t1:#1c1814; --t2:#3d362e; --t3:#5f574c; --t4:#6f665a;
   --link:#6420d4; --foco:#6420d4; --ok:#0f7a4d; --warn:#955400; --err:#c11340;
   --pur:#6420d4; --errt:#c11340; --w1:rgba(45,35,20,.04); --w2:rgba(45,35,20,.07); --btnbg:#fbf8f1; --mask:rgba(28,24,20,.45); --navoff:#3d362e;
+  --s1:#6a35d9; --s2:#b3127a; --s3:#d4153f; --s4:#b85a06; --s5:#0e8577; --s6:#1f6fd1; --s7:#857410; --s0:#8a8378;
   --nav-on:linear-gradient(90deg,rgba(123,47,247,.16),rgba(240,22,74,.07));
   --sombra:0 1px 2px rgba(60,40,10,.08); color-scheme:light;
 }
@@ -218,6 +220,21 @@ tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--w1)}
 .copy{display:flex;gap:8px;margin-top:8px}
 .copy input{font-family:var(--mono);font-size:13px}
+.analise .gr{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:24px;align-items:start;padding:16px 20px}
+.analise .pz{display:flex;flex-direction:column;gap:12px}
+.analise .pz svg{width:100%;max-width:200px;align-self:center}
+.analise .lg{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.analise .lg div{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:center}
+.analise .lg i{width:10px;height:10px;border-radius:2px}
+.analise .lg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
+.analise .lg b{font-weight:510;color:var(--t1);font-variant-numeric:tabular-nums}
+.analise .ln svg{width:100%;height:auto;display:block}
+.analise .ln text{fill:var(--t3);font-size:11px}
+.analise .ln circle{cursor:pointer}
+.analise .tipline{font-size:13px;min-height:20px;margin-top:8px;color:var(--t2)}
+.analise .ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.analise .up{color:var(--errt)} .analise .dn{color:var(--ok)}
+@media (max-width:760px){.analise .gr{grid-template-columns:1fr;padding:16px}}
 .badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:9999px;font-size:11px;font-weight:590;border:1px solid var(--line2);color:var(--t3);background:var(--w1)}
 .badge.ind{color:var(--link);border-color:rgba(199,166,255,.3);background:rgba(123,47,247,.12)}
 .badge.ok{color:var(--ok);border-color:rgba(62,207,142,.3);background:rgba(62,207,142,.08)}
@@ -1896,6 +1913,75 @@ async function carregarRel() {
   finally { relBusca = null; }
 }
 const somaK = (a, k) => a.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+/* ============ análise de gastos: agregação e gráficos SVG (sem biblioteca) ============ */
+const CORES_SERIE = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)'];
+const MAX_ITENS = 7;
+function chaveGasto(x, angulo) {
+  if (angulo === 'subsetor') return nomeSetor(x.setor);
+  if (angulo === 'fornecedor') return x.fornecedorNome || null;
+  return x.categoria || 'Sem categoria';
+}
+function agregarGastos(lista, angulo, mes, modo) {
+  const ant = mesAdd(mes, -1), doMes = x => (x.data || '').slice(0, 7);
+  let excluido = 0;
+  const com = lista.filter(x => { const k = chaveGasto(x, angulo); if (k === null && doMes(x) === mes) excluido += Number(x.valor) || 0; return k !== null; });
+  const tot = {}; com.filter(x => doMes(x) === mes).forEach(x => { const k = chaveGasto(x, angulo); tot[k] = (tot[k] || 0) + (Number(x.valor) || 0); });
+  const ord = Object.keys(tot).sort((a, b) => tot[b] - tot[a] || a.localeCompare(b));
+  const grupos = ord.length > MAX_ITENS ? ord.slice(0, MAX_ITENS).map(k => [k]).concat([ord.slice(MAX_ITENS)]) : ord.map(k => [k]);
+  const total = ord.reduce((s, k) => s + tot[k], 0);
+  const eixo = modo === 'mes' ? Array.from({ length:12 }, (_, i) => mesAdd(mes, i - 11)) : Array.from({ length:diasNoMes(mes) }, (_, i) => pad(i + 1));
+  const itens = [], series = [];
+  grupos.forEach((g, i) => {
+    const outros = g.length > 1 || (ord.length > MAX_ITENS && i === MAX_ITENS), nome = outros ? 'Outros' : g[0], cor = outros ? 'var(--s0)' : CORES_SERIE[i];
+    const del = com.filter(x => g.includes(chaveGasto(x, angulo)));
+    const noMes = del.filter(x => doMes(x) === mes), t = somaK(noMes, 'valor'), antes = somaK(del.filter(x => doMes(x) === ant), 'valor');
+    const mx = noMes.slice().sort((a, b) => (Number(b.valor) || 0) - (Number(a.valor) || 0))[0];
+    itens.push({ nome, cor, total:t, pct:total > 0 ? t / total : 0, antes, delta:t - antes, deltaPct:antes > 0 ? (t - antes) / antes : null, n:noMes.length, maior:mx ? { valor:Number(mx.valor) || 0, data:mx.data } : null, media:noMes.length ? t / noMes.length : 0 });
+    const pontos = eixo.map(r => somaK(del.filter(x => modo === 'mes' ? doMes(x) === r : x.data === mes + '-' + r), 'valor'));
+    series.push({ nome, cor, pontos });
+  });
+  return { itens, eixo, series, total, excluido, mes, modo };
+}
+const brlCurto = v => v >= 1000 ? (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits:1 }) + ' mil' : Math.round(v).toLocaleString('pt-BR');
+const rotMes = m => { const n = mesNome(m, false); return n.length > 8 ? n.slice(0, 3).toLowerCase() + '/' + m.slice(2, 4) : n; };
+function graficoPizza(itens, total) {
+  const r = 70, c = 2 * Math.PI * r; let acc = 0;
+  const fatias = total > 0 ? itens.filter(x => x.total > 0).map(x => {
+    const len = x.total / total * c, seg = `<circle r="${r}" cx="100" cy="100" fill="none" stroke="${x.cor}" stroke-width="34" stroke-dasharray="${len.toFixed(2)} ${(c - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" transform="rotate(-90 100 100)" data-tip="${esc(x.nome)} · ${brl(x.total)} · ${pct(x.pct)}"><title>${esc(x.nome)}: ${brl(x.total)} (${pct(x.pct)})</title></circle>`;
+    acc += len; return seg;
+  }).join('') : '';
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="Divisão dos gastos: ${esc(itens.map(x => x.nome + ' ' + pct(x.pct)).join(', '))}"><circle r="${r}" cx="100" cy="100" fill="none" stroke="var(--line)" stroke-width="34"/>${fatias}<text x="100" y="96" text-anchor="middle" style="font-size:11px;fill:var(--t3)">total</text><text x="100" y="114" text-anchor="middle" style="font-size:15px;font-weight:590;fill:var(--t1)">${esc(brlCurto(total))}</text></svg>`;
+}
+function graficoLinha(eixo, series) {
+  const W = 640, H = 240, L = 52, R = 12, T = 12, B = 28, n = eixo.length, mesmo = eixo[0] && eixo[0].length > 2;
+  const max0 = Math.max(1, ...series.flatMap(s => s.pontos)), passo = Math.pow(10, Math.floor(Math.log10(max0))), top = Math.ceil(max0 / passo) * passo;
+  const x = i => L + (n > 1 ? i * (W - L - R) / (n - 1) : (W - L - R) / 2), y = v => T + (H - T - B) * (1 - v / top);
+  const ticks = [0, .25, .5, .75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(top * f).toFixed(1)}" y2="${y(top * f).toFixed(1)}" stroke="var(--line)"/><text x="${L - 6}" y="${(y(top * f) + 4).toFixed(1)}" text-anchor="end">${esc(brlCurto(top * f))}</text>`).join('');
+  const cada = Math.max(1, Math.ceil(n / 8));
+  const rots = eixo.map((r, i) => (i % cada === 0 || i === n - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(mesmo ? rotMes(r) : r)}</text>` : '').join('');
+  const lin = series.map(s => `<polyline fill="none" stroke="${s.cor}" stroke-width="2" stroke-linejoin="round" points="${s.pontos.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ')}"/>` +
+    s.pontos.map((v, i) => v > 0 ? `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${s.cor}" data-tip="${esc(s.nome)} · ${esc(mesmo ? mesNome(eixo[i], false) : 'dia ' + eixo[i])} · ${brl(v)}"><title>${esc(s.nome)}: ${brl(v)}</title></circle>` : '').join('')).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gastos ${mesmo ? 'por mês' : 'por dia'} de cada item">${ticks}${rots}${lin}</svg>`;
+}
+function analiseHTML(ag, o) {
+  const NOMES_ANG = { categoria:'Categoria', subsetor:'Subsetor', fornecedor:'Fornecedor' };
+  const ctl = `<div class="ctl noprint">${o.angulos.length > 1 ? `<div class="seg" role="group" aria-label="Ver por">${o.angulos.map(a => `<button class="${o.angulo === a ? 'on' : ''}" data-act="${o.acaoAngulo}" data-v="${a}">${NOMES_ANG[a]}</button>`).join('')}</div>` : ''}<div class="seg" role="group" aria-label="Período">${[['dia', 'Por dia'], ['mes', 'Por mês']].map(([v, n]) => `<button class="${o.modo === v ? 'on' : ''}" data-act="${o.acaoModo}" data-v="${v}">${n}</button>`).join('')}</div></div>`;
+  const head = `<div class="ph2"><h3>Análise de gastos${o.angulos.length > 1 ? ' por ' + NOMES_ANG[o.angulo].toLowerCase() : ''}</h3>${ctl}</div>`;
+  const nota = o.angulo === 'fornecedor' && ag.excluido > 0 ? `<p class="muted" style="font-size:13px;padding:0 20px">${brl(ag.excluido)} em gastos sem fornecedor não entram nesta visão.</p>` : '';
+  if (!ag.itens.length) return `<section class="panel analise" style="margin:0">${head}${nota}<div class="pb muted" style="font-size:14px">Nenhum gasto ${o.angulo === 'fornecedor' ? 'com fornecedor ' : ''}em ${esc(mesNome(o.mes, true).toLowerCase())}.</div></section>`;
+  const leg = ag.itens.map(x => `<div><i style="background:${x.cor}"></i><span title="${esc(x.nome)}">${esc(x.nome)}</span><b>${pct(x.pct)}</b></div>`).join('');
+  const vs = x => x.deltaPct === null ? (x.total > 0 ? '<span class="up">novo</span>' : '—') : x.delta === 0 ? '0%' : `<span class="${x.delta > 0 ? 'up' : 'dn'}">${x.delta > 0 ? '▲ +' : '▼ −'}${brl(Math.abs(x.delta))} (${x.delta > 0 ? '+' : '−'}${pct(Math.abs(x.deltaPct))})</span>`;
+  const tr = x => `<tr><td style="color:var(--t1)"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${x.cor};margin-right:8px"></span>${esc(x.nome)}</td><td style="text-align:right">${brl(x.total)}</td><td style="text-align:right">${pct(x.pct)}</td><td style="text-align:right">${vs(x)}</td><td style="text-align:right">${x.n}</td><td style="text-align:right">${x.maior ? brl(x.maior.valor) + ' <span class="muted">(' + dataBR(x.maior.data).slice(0, 5) + ')</span>' : '—'}</td><td style="text-align:right">${x.n ? brl(x.media) : '—'}</td></tr>`;
+  const tabela = `<div class="scroll-x"><table style="font-variant-numeric:tabular-nums"><thead><tr><th>Item</th><th style="text-align:right">Gasto no mês</th><th style="text-align:right">%</th><th style="text-align:right">vs. mês anterior</th><th style="text-align:right">Lançamentos</th><th style="text-align:right">Maior gasto</th><th style="text-align:right">Média</th></tr></thead><tbody>${ag.itens.map(tr).join('')}<tr><td style="color:var(--t1)"><b>Total</b></td><td style="text-align:right"><b>${brl(ag.total)}</b></td><td style="text-align:right">100%</td><td></td><td style="text-align:right">${ag.itens.reduce((s, x) => s + x.n, 0)}</td><td></td><td></td></tr></tbody></table></div>`;
+  return `<section class="panel analise" style="margin:0">${head}${nota}
+    <div class="gr"><div class="pz">${graficoPizza(ag.itens, ag.total)}<div class="lg">${leg}</div></div>
+    <div class="ln"><div class="muted" style="font-size:12px;margin-bottom:4px">${o.modo === 'mes' ? 'R$ por mês · últimos 12 meses' : 'R$ por dia · ' + esc(mesNome(o.mes, true).toLowerCase())}</div>${graficoLinha(ag.eixo, ag.series)}<p class="tipline noprint" aria-live="polite">Toque num ponto ou fatia para ver o valor.</p></div></div>
+    ${tabela}</section>`;
+}
+['click', 'mouseover'].forEach(ev => document.addEventListener(ev, e => {
+  const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null; if (!t) return;
+  const box = t.closest('.analise'), l = box && box.querySelector('.tipline'); if (l) l.textContent = t.getAttribute('data-tip');
+}));
 function calcRel(d, esc, mes) {
   const geral = esc === 'geral', hoje = hojeStr();
   const f = a => (geral ? a : a.filter(x => x.setor === esc));
