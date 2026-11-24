@@ -535,7 +535,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -1895,19 +1895,20 @@ async function carregarRel() {
   relBusca = mes;
   const ini = mes + '-01', fim = mesAdd(mes, 1) + '-01';
   try {
-    const [lq, bq, pres, fq, eq, mq, pq, tq, bpq, cpq, cdq] = await Promise.all([
-      colLanc().where('data', '>=', ini).where('data', '<', fim).get(),
+    const [lq, bq, pres, fq, eq, mq, pq, tq, bpq, cpq, cdq, vq] = await Promise.all([
+      colLanc().where('data', '>=', mesAdd(mes, -12) + '-01').where('data', '<', fim).get(),
       db.collection(`empresas/${EMPRESA}/boletos`).where('vencimento', '>=', ini).where('vencimento', '<', fim).get(),
       buscarPresMes(mes), colFree().get(),
       db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get(),
       db.collection(`empresas/${EMPRESA}/metas`).get(), colProd().get(), colTar().get(),
       db.collection(`empresas/${EMPRESA}/boletos`).where('pagoEm', '>=', ini).where('pagoEm', '<', fim).get(),
       colContasPag('contas').where('pagoEm', '>=', ini).where('pagoEm', '<', fim).get(),
-      colContas('contas').get()
+      colContas('contas').get(), colVendasMes().doc(mes).get()
     ]);
     const ar = q => q.docs.map(d => ({ id:d.id, ...d.data() })), metas = {};
     mq.docs.forEach(d => { metas[d.id] = Number(d.data().vendas) || 0; });
-    const dados = { lanc:ar(lq), boletos:ar(bq), pres:Object.values(pres), free:ar(fq), energia:ar(eq).filter(x => x.loja), metas, prod:ar(pq), tar:ar(tq), bolPg:ar(bpq), contasPg:ar(cpq), contasDefs:ar(cdq) };
+    const hist = ar(lq).filter(x => x.tipo === 'custo');
+    const dados = { hist, vendaMes:vq.exists ? Number(vq.data().valor) || 0 : 0, lanc:hist.filter(x => (x.data || '').slice(0, 7) === mes), boletos:ar(bq), pres:Object.values(pres), free:ar(fq), energia:ar(eq).filter(x => x.loja), metas, prod:ar(pq), tar:ar(tq), bolPg:ar(bpq), contasPg:ar(cpq), contasDefs:ar(cdq) };
     if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados, chave:mes, erro:null } });
   } catch (e) { console.error(e); if (Store.s.rel.mes === mes) Store.set({ rel:{ ...Store.s.rel, dados:null, chave:mes, erro:'Não foi possível montar o relatório. ' + msgErro(e) } }); }
   finally { relBusca = null; }
@@ -1985,14 +1986,15 @@ function analiseHTML(ag, o) {
 function calcRel(d, esc, mes) {
   const geral = esc === 'geral', hoje = hojeStr();
   const f = a => (geral ? a : a.filter(x => x.setor === esc));
-  const lanc = f(d.lanc), ven = lanc.filter(x => x.tipo === 'venda'), cus = lanc.filter(x => x.tipo === 'custo');
-  const vendas = somaK(ven, 'valor'), custos = somaK(cus, 'valor');
+  const lanc = f(d.lanc), cus = lanc, ant = mesAdd(mes, -1), histAnt = d.hist.filter(x => (x.data || '').slice(0, 7) === ant);
+  const vendas = geral ? d.vendaMes : 0, custos = somaK(cus, 'valor'), custosAnt = somaK(f(histAnt), 'valor');
+  const maior = cus.slice().sort((a, b) => (Number(b.valor) || 0) - (Number(a.valor) || 0))[0] || null;
   const porCat = (a, cats) => cats.map(c => ({ c, v:somaK(a.filter(x => x.categoria === c), 'valor') })).concat([{ c:'Sem categoria', v:somaK(a.filter(x => !cats.includes(x.categoria)), 'valor') }]).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
   const setores = SETORES_TODOS.filter(s => !s.arquivado || d.lanc.some(x => x.setor === s.id && x.tipo === 'custo')).map(s => ({ ...s, nome:nomeSetor(s.id) })).map(s => {
-    const v = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'venda'), 'valor'), c = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'custo'), 'valor'), m = d.metas[s.id + '_' + mes] || 0;
-    return { ...s, v, c, r:v - c, m, mp:m > 0 ? v / m : null };
+    const c = somaK(d.lanc.filter(x => x.setor === s.id), 'valor'), ca = somaK(histAnt.filter(x => x.setor === s.id), 'valor');
+    return { ...s, c, ca, n:d.lanc.filter(x => x.setor === s.id).length };
   });
-  const meta = geral ? setores.reduce((s, x) => s + x.m, 0) : (d.metas[esc + '_' + mes] || 0);
+  const meta = geral ? (d.metas['loja_' + mes] || 0) : 0;
   const bol = f(d.boletos).concat(geral ? [] : []), pagos = bol.filter(b => b.pago), aberto = bol.filter(b => !b.pago);
   const venc = aberto.filter(b => b.vencimento < hoje), avc = aberto.filter(b => b.vencimento >= hoje);
   const setorDe = {}; d.free.forEach(x => { setorDe[x.id] = x.setor; });
@@ -2004,7 +2006,7 @@ function calcRel(d, esc, mes) {
   const setC = {}; (d.contasDefs || []).forEach(c => { setC[c.id] = c.setor; });
   const jL = somaK(cus, 'juros'), jB = somaK(f(d.bolPg || []), 'juros'), jC = somaK((d.contasPg || []).filter(p => geral || setC[p.contaId] === esc), 'juros');
   const juros = { l:jL, b:jB, c:jC, total:jL + jB + jC, nl:cus.filter(x => Number(x.juros) > 0).length, nb:f(d.bolPg || []).filter(x => Number(x.juros) > 0).length, nc:(d.contasPg || []).filter(p => (geral || setC[p.contaId] === esc) && Number(p.juros) > 0).length };
-  return { juros, lanc, vendas, custos, res:vendas - custos, margem:vendas > 0 ? (vendas - custos) / vendas : 0, catV:porCat(ven, CAT_VENDA), catC:porCat(cus, CAT_CUSTO), setores, meta, metaP:meta > 0 ? vendas / meta : null, bol, pagos, venc, avc, free, energia:geral && d.energia.length ? somaEn(d.energia) : null, emEst, abaixo, nProd:prod.length, tAb, tAtr, tFeitas };
+  return { juros, lanc, vendas, custos, custosAnt, maior, res:vendas - custos, margem:vendas > 0 ? (vendas - custos) / vendas : null, setores, meta, metaP:meta > 0 ? vendas / meta : null, bol, pagos, venc, avc, free, energia:geral && d.energia.length ? somaEn(d.energia) : null, emEst, abaixo, nProd:prod.length, tAb, tAtr, tFeitas };
 }
 function relatoriosHTML(s) {
   const R = s.rel, mes = R.mes, esc_ = R.esc, nome = esc_ === 'geral' ? 'Relatório geral' : 'Relatório · ' + nomeSetor4(esc_);
@@ -2016,21 +2018,25 @@ function relatoriosHTML(s) {
   if (!R.dados) return head + erro + `<div class="stack">${nav}<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div></div>`;
   const x = calcRel(R.dados, esc_, mes), cor = v => (v >= 0 ? 'var(--ok)' : 'var(--err)');
   const card = (c, l, v, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${c}"></span>${l}</span><span class="v">${v}</span><span class="q">${q}</span></div>`;
-  const cards = `<div class="rcards">${card('var(--ok)', 'Vendas', brl(x.vendas), x.metaP === null ? 'sem meta no mês' : pct(x.metaP) + ' da meta de ' + brl(x.meta))}${card('var(--err)', 'Custos', brl(x.custos), x.vendas > 0 ? pct(x.custos / x.vendas) + ' das vendas' : '—')}${card('var(--pur)', 'Resultado', `<span style="color:${cor(x.res)}">${brl(x.res)}</span>`, 'vendas − custos')}${card('var(--warn)', 'Margem', pct(x.margem), 'resultado ÷ vendas')}</div>`;
+  const vsAnt = (v, a) => a > 0 ? `${v >= a ? '+' : '−'}${pct(Math.abs(v - a) / a)} vs. mês anterior (${brl(a)})` : 'sem gastos no mês anterior';
+  const cards = esc_ === 'geral'
+    ? `<div class="rcards">${card('var(--ok)', 'Vendas', brl(x.vendas), x.vendas > 0 ? (x.metaP === null ? 'sem meta no mês' : pct(x.metaP) + ' da meta de ' + brl(x.meta)) : 'sem venda do mês registrada')}${card('var(--err)', 'Gastos', brl(x.custos), vsAnt(x.custos, x.custosAnt))}${card('var(--pur)', 'Resultado', `<span style="color:${cor(x.res)}">${brl(x.res)}</span>`, 'vendas − gastos')}${card('var(--warn)', 'Margem', x.margem === null ? '—' : pct(x.margem), 'resultado ÷ vendas')}</div>`
+    : `<div class="rcards">${card('var(--err)', 'Gastos', brl(x.custos), vsAnt(x.custos, x.custosAnt))}${card('var(--pur)', 'Lançamentos', String(x.lanc.length), 'gastos lançados no mês')}${card('var(--warn)', 'Maior gasto', x.maior ? brl(x.maior.valor) : '—', x.maior ? esc(x.maior.fornecedorNome || x.maior.descricao || x.maior.categoria || '') + ' · ' + dataBR(x.maior.data) : 'sem gastos')}</div>`;
   const tb = (cols, linhas, vazioTxt) => linhas.length ? `<div class="scroll-x"><table><thead><tr>${cols.map((c, i) => `<th ${i ? 'style="text-align:right"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>` : `<div class="pb muted" style="font-size:14px">${vazioTxt}</div>`;
   const tr = a => `<tr>${a.map((c, i) => `<td ${i ? 'style="text-align:right;font-variant-numeric:tabular-nums"' : 'style="color:var(--t1)"'}>${c}</td>`).join('')}</tr>`;
   const painel = (t, corpo) => `<section class="panel" style="margin:0"><div class="ph2"><h3>${t}</h3></div>${corpo}</section>`;
   const cat = (a, tot) => tb(['Categoria', 'Valor', '%'], a.map(r => tr([esc(r.c), brl(r.v), pct(tot > 0 ? r.v / tot : 0)])), 'Nenhum lançamento no mês.');
   let corpo = '';
-  if (esc_ === 'geral') corpo += painel('Resultado por setor', tb(['Subsetor', 'Vendas', 'Custos', 'Resultado', 'Margem', 'Meta', '% da meta'], x.setores.map(r => tr([esc(r.nome), brl(r.v), brl(r.c), `<span style="color:${cor(r.r)}">${brl(r.r)}</span>`, r.v > 0 ? pct(r.r / r.v) : '—', r.m > 0 ? brl(r.m) : '—', r.mp === null ? '—' : pct(r.mp)]).replace(/^/, '')).concat([tr(['<b>Total</b>', `<b>${brl(x.vendas)}</b>`, `<b>${brl(x.custos)}</b>`, `<b style="color:${cor(x.res)}">${brl(x.res)}</b>`, `<b>${pct(x.margem)}</b>`, x.meta > 0 ? `<b>${brl(x.meta)}</b>` : '—', x.metaP === null ? '—' : `<b>${pct(x.metaP)}</b>`])]), ''));
-  corpo += `<div class="duo">${painel('Vendas por categoria', cat(x.catV, x.vendas))}${painel('Custos por categoria', cat(x.catC, x.custos))}</div>`;
+  const angs = esc_ === 'geral' ? ['categoria', 'subsetor', 'fornecedor'] : ['categoria', 'fornecedor'], ang = angs.includes(R.ang) ? R.ang : 'categoria';
+  corpo += analiseHTML(agregarGastos(esc_ === 'geral' ? R.dados.hist : R.dados.hist.filter(l => l.setor === esc_), ang, mes, R.modo), { angulos:angs, angulo:ang, modo:R.modo, mes, acaoAngulo:'relAng', acaoModo:'relModo' });
+  if (esc_ === 'geral') corpo += painel('Gastos por subsetor', tb(['Subsetor', 'Gasto no mês', '% dos gastos', 'Mês anterior', 'Variação', 'Lançamentos'], x.setores.map(r => tr([esc(r.nome), brl(r.c), x.custos > 0 ? pct(r.c / x.custos) : '—', brl(r.ca), r.ca > 0 ? `<span style="color:${r.c > r.ca ? 'var(--errt)' : 'var(--ok)'}">${r.c >= r.ca ? '+' : '−'}${pct(Math.abs(r.c - r.ca) / r.ca)}</span>` : (r.c > 0 ? 'novo' : '—'), r.n])).concat([tr(['<b>Total</b>', `<b>${brl(x.custos)}</b>`, '100%', `<b>${brl(x.custosAnt)}</b>`, '', `<b>${x.lanc.length}</b>`])]), ''));
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
   corpo += painel('Juros pagos no mês', tb(['Origem', 'Qtd', 'Juros'], [tr(['Custos lançados', x.juros.nl, brl(x.juros.l)]), tr(['Boletos pagos no mês', x.juros.nb, brl(x.juros.b)]), tr(['Contas agendadas pagas no mês', x.juros.nc, brl(x.juros.c)]), tr(['<b>Total de juros</b>', `<b>${x.juros.nl + x.juros.nb + x.juros.nc}</b>`, `<b style="color:${x.juros.total > 0 ? 'var(--warn)' : 'var(--t1)'}">${brl(x.juros.total)}</b>`])], '')) + '\n  ';
   corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
     ${esc_ !== 'geral' ? '' : painel('Freelancers do mês', tb(['Item', 'Valor'], [tr(['Diárias presentes', x.free.dias]), tr(['Faltas', x.free.faltas]), tr(['Total das diárias', brl(x.free.total)]), tr(['Já pago', brl(x.free.pago)]), tr(['<b>A pagar</b>', `<b>${brl(x.free.devendo)}</b>`])], ''))}</div>`;
   corpo += `<div class="duo">${painel('Estoque e tarefas', tb(['Item', 'Valor'], [tr(['Produtos cadastrados', x.nProd]), tr(['Valor em estoque (hoje)', brl(x.emEst)]), tr(['Abaixo do mínimo ou zerados', x.abaixo.length]), tr(['Tarefas abertas', x.tAb.length]), tr(['Tarefas atrasadas', x.tAtr.length]), tr(['Tarefas concluídas no mês', x.tFeitas.length])], ''))}
     ${esc_ === 'geral' ? painel('Energia solar (Loja 01 + Loja 02)', x.energia ? tb(['Item', 'Valor'], [tr(['Sem desconto', brl(x.energia.semDesconto)]), tr(['Pago ao dono da usina', brl(x.energia.pagoUsina)]), tr(['Pago à Enel', brl(x.energia.pagoEnel)]), tr(['<b>Economia</b>', `<b style="color:${cor(ecoEn(x.energia))}">${brl(ecoEn(x.energia))} (${pct(ecoPctEn(x.energia))})</b>`]), tr(['Cobertura solar', pct(cobEn(x.energia))])], '') : '<div class="pb muted" style="font-size:14px">Sem dados de energia neste mês.</div>') : ''}</div>`;
-  if (esc_ !== 'geral') corpo += painel('Lançamentos do mês', tb(['Data / descrição', 'Tipo', 'Categoria', 'Valor'], x.lanc.slice().sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(l => tr([dataBR(l.data) + ' · ' + esc(l.descricao || '—'), l.tipo === 'venda' ? 'Venda' : 'Custo', esc(l.categoria || '—'), `<span style="color:${l.tipo === 'venda' ? 'var(--ok)' : 'var(--err)'}">${l.tipo === 'venda' ? '' : '−'}${brl(l.valor)}</span>`])), 'Nenhum lançamento neste mês.'));
+  if (esc_ !== 'geral') corpo += painel('Gastos lançados no mês', tb(['Data / descrição', 'Tipo', 'Categoria', 'Valor'], x.lanc.slice().sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(l => tr([dataBR(l.data) + ' · ' + esc(l.descricao || '—'), l.tipo === 'venda' ? 'Venda' : 'Custo', esc(l.categoria || '—'), `<span style="color:${l.tipo === 'venda' ? 'var(--ok)' : 'var(--err)'}">${l.tipo === 'venda' ? '' : '−'}${brl(l.valor)}</span>`])), 'Nenhum lançamento neste mês.'));
   const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão</b><span>${esc(nome)} · ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
   return head + erro + `<div class="stack">${nav}${topo}${cards}${corpo}</div>`;
 }
@@ -2044,6 +2050,17 @@ const CATS_SUG = {
   entrada:['Aluguéis recebidos', 'Renda extra', 'Outras entradas']
 };
 let pesBusca = null, pesCatBusca = false;
+let pesHistBusca = null;
+async function carregarGastosPes(mes) {
+  if (Store.s.pes.histChave === mes || pesHistBusca === mes) return;
+  pesHistBusca = mes;
+  try {
+    const q = await colPes().where('data', '>=', mesAdd(mes, -12) + '-01').where('data', '<', mesAdd(mes, 1) + '-01').get();
+    const hist = q.docs.map(d => ({ id:d.id, ...d.data() })).filter(x => x.tipo === 'gasto');
+    if (Store.s.pes.mes === mes) Store.set({ pes:{ ...Store.s.pes, hist, histChave:mes } });
+  } catch (e) { console.error(e); Store.set({ pes:{ ...Store.s.pes, hist:[], histChave:mes } }); }
+  finally { pesHistBusca = null; }
+}
 async function carregarPes() {
   const P = Store.s.pes, mes = P.mes;
   try {
@@ -2094,7 +2111,8 @@ function pessoalHTML(s) {
       <div class="brow hd" role="row"><span>Descrição</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span class="noprint"></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nada lançado em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Novo gasto" ou "+ Nova entrada".</div>`}</div></section>`;
   const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão · Pessoal</b><span>Extrato de ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
-  return head + erro + `<div class="stack">${nav}${topo}${sug}${cards}${barras}${jurosQ}${lista}</div>`;
+  const analiseP = P.histChave === mes && P.hist ? analiseHTML(agregarGastos(P.hist, 'categoria', mes, P.modo), { angulos:['categoria'], angulo:'categoria', modo:P.modo, mes, acaoAngulo:'pesAng', acaoModo:'pesModo' }) : '<div class="skbox" style="height:240px"></div>';
+  return head + erro + `<div class="stack">${nav}${topo}${sug}${cards}${analiseP}${jurosQ}${lista}</div>`;
 }
 const nLanc = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
 function opcoesCat(tp, atual) {
@@ -2132,7 +2150,7 @@ async function salvarPes(f, d) {
     if (id) await ref.update(mud); else await ref.set({ ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
     if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
-    fecharModal(); Store.set({ pes:{ ...P, lista, erro:null } });
+    fecharModal(); Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 function catsModalHTML() {
@@ -2410,7 +2428,7 @@ async function aposPagina(id, s) {
   if (id === 'empresa') { carregarLanc(); carregarEstoque(); carregarMetas(); carregarVendasMes(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
-  if (id === 'pessoal') { carregarPes(); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
+  if (id === 'pessoal') { carregarPes(); carregarGastosPes(Store.s.pes.mes); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
   if (id === 'equipe') {
     const box = $('#equipeLista'); if (!box) return;
     try {
@@ -2701,6 +2719,9 @@ const acoes = {
   emes(el) { const E = Store.s.energia, novo = mesAdd(E.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ energia:{ ...E, mes:novo } }); },
   eloja(el) { Store.set({ energia:{ ...Store.s.energia, loja:el.dataset.l } }); },
   relEsc(el) { Store.set({ rel:{ ...Store.s.rel, esc:el.dataset.e } }); },
+  relAng(el) { Store.set({ rel:{ ...Store.s.rel, ang:el.dataset.v } }); },
+  relModo(el) { Store.set({ rel:{ ...Store.s.rel, modo:el.dataset.v } }); },
+  pesModo(el) { Store.set({ pes:{ ...Store.s.pes, modo:el.dataset.v } }); },
   relMes(el) { const R = Store.s.rel, novo = mesAdd(R.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ rel:{ ...R, mes:novo, dados:null, erro:null } }); },
   relRecarregar() { Store.set({ rel:{ ...Store.s.rel, dados:null, chave:null, erro:null } }); },
   relPdf() { document.title = 'Relatorio-356-' + Store.s.rel.esc + '-' + Store.s.rel.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
@@ -2722,7 +2743,7 @@ const acoes = {
   },
   async pesApagarOk(el) {
     const id = el.dataset.id, P = Store.s.pes;
-    try { await colPes().doc(id).delete(); fecharModal(); Store.set({ pes:{ ...P, lista:P.lista.filter(x => x.id !== id), erro:null } }); }
+    try { await colPes().doc(id).delete(); fecharModal(); Store.set({ pes:{ ...P, lista:P.lista.filter(x => x.id !== id), erro:null, histChave:null } }); }
     catch (e) { fecharModal(); Store.set({ pes:{ ...P, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
   pesCats() { abrirModal('Categorias', catsModalHTML()); },
