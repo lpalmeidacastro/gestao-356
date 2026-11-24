@@ -465,12 +465,13 @@ const SETORES = [
   { id:'importados', nome:'Produtos importados' },
   { id:'bebidas',    nome:'Bebidas' },
   { id:'cozinha',    nome:'Cozinha' },
-  { id:'eventos',    nome:'Eventos' },
+  { id:'conveniencia', nome:'Conveniência' },
   { id:'fornecedores', nome:'Fornecedores', forn:true }
 ];
 /* subsetores da Empresa: a lista abaixo é o padrão; depois de carregar, vale a de empresas/356/subsetores */
 const SETORES_PADRAO = SETORES.map(x => ({ ...x }));
-const NOMES = {}; SETORES.forEach(x => { NOMES[x.id] = x.nome; });
+const NOMES = { eventos:'Eventos' }; SETORES.forEach(x => { NOMES[x.id] = x.nome; });
+const SETORES_TODOS = SETORES.map(x => ({ ...x })), ARQ = new Set();
 const ID_FORN = 'fornecedores';
 
 /* ============ Store ============ */
@@ -707,7 +708,7 @@ async function carregarPainel() {
 //   valor (número), pago (bool), pagoEm 'AAAA-MM-DD'|null, temComprovante (bool), criadoPorUid, criadoEm
 // empresas/356/comprovantes/{boletoId}: dataUrl (foto comprimida), em, por  (separado para a lista não carregar fotos)
 const setoresB = () => SETORES.concat([{ id:'geral', nome:'Geral' }]);
-const nomeSetor = id => id === 'geral' ? 'Geral' : (NOMES[id] || '—');
+const nomeSetor = id => id === 'geral' ? 'Geral' : (NOMES[id] || '—') + (ARQ.has(id) ? ' (arquivado)' : '');
 const hojeStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
 const diasAte = iso => { const [y, m, d] = iso.split('-').map(Number), [a, b, c] = hojeStr().split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(a, b - 1, c)) / 864e5); };
 const dataBR = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
@@ -764,8 +765,17 @@ const colForn = () => db.collection(`empresas/${EMPRESA}/fornecedores`);
 let subBusca = false, fornBusca = false;
 function aplicarSubs(docs) {
   docs.forEach(x => { NOMES[x.id] = x.nome; });
-  SETORES.length = 0;
-  docs.forEach(x => SETORES.push({ id:x.id, nome:x.nome, forn:x.id === ID_FORN }));
+  ARQ.clear(); docs.forEach(x => { if (x.arquivado) ARQ.add(x.id); });
+  SETORES_TODOS.length = 0; docs.forEach(x => SETORES_TODOS.push({ id:x.id, nome:x.nome, forn:x.id === ID_FORN, arquivado:!!x.arquivado, ordem:x.ordem || 0 }));
+  SETORES.length = 0; SETORES_TODOS.filter(x => !x.arquivado).forEach(x => SETORES.push(x));
+}
+/* troca única pedida pelo dono em 24/11/2026: Eventos arquivado, entra Conveniência (só roda se Conveniência ainda não existe) */
+async function migrarConveniencia(docs) {
+  if (docs.some(x => x.id === 'conveniencia')) return false;
+  const ev = docs.find(x => x.id === 'eventos'), b = db.batch();
+  if (ev && !ev.arquivado) b.update(colSub().doc('eventos'), { arquivado:true });
+  b.set(colSub().doc('conveniencia'), { nome:'Conveniência', ordem:ev ? ev.ordem || 4 : docs.length + 1, fixo:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+  await b.commit(); return true;
 }
 async function carregarSubs(forcar) {
   if (subBusca || (Store.s.subset.ok && !forcar)) return;
@@ -776,6 +786,8 @@ async function carregarSubs(forcar) {
       const b = db.batch();
       SETORES_PADRAO.forEach((x, i) => b.set(colSub().doc(x.id), { nome:x.nome, ordem:i + 1, fixo:!!x.forn, criadoPorUid:Store.s.user.uid, criadoEm:TS() }));
       await b.commit(); q = await colSub().get();
+    } else if (q.docs.length && Store.s.perfil && Store.s.perfil.papel === 'admin') {
+      if (await migrarConveniencia(q.docs.map(d => ({ id:d.id, ...d.data() })))) q = await colSub().get();
     }
     const docs = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
     if (docs.length) aplicarSubs(docs);
@@ -796,9 +808,10 @@ async function carregarForn(forcar) {
 const subAtualId = () => (Store.s.rota === 'empresa' && Store.s.emp.sub !== 'todos' && SETORES.some(x => x.id === Store.s.emp.sub)) ? Store.s.emp.sub : null;
 const nomeIgual = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 function subsModalHTML() {
-  const rows = SETORES.map(x => `<form data-form="subsetRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
-      <input name="nome" value="${esc(x.nome)}" maxlength="40" aria-label="Nome do subsetor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button></form>`).join('');
-  return `<p class="muted" style="font-size:13px">Os subsetores dividem a Empresa. Lançamentos, estoque, tarefas, contas e freelancers usam esta lista. O subsetor "Fornecedores" tem cadastro próprio de fornecedores.</p>
+  const admin = Store.s.perfil.papel === 'admin';
+  const rows = SETORES_TODOS.map(x => `<form data-form="subsetRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)${x.arquivado ? ';opacity:.6' : ''}">
+      <input name="nome" value="${esc(x.nome)}" maxlength="40" aria-label="Nome do subsetor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button>${admin && x.id !== ID_FORN ? (x.arquivado ? `<button class="btn" type="button" data-act="subReativar" data-id="${esc(x.id)}" style="flex:0 0 auto">Reativar</button>` : `<button class="btn ghost" type="button" data-act="subArquivar" data-id="${esc(x.id)}" style="flex:0 0 auto">Arquivar</button>`) : ''}</form>`).join('');
+  return `<p class="muted" style="font-size:13px">Os subsetores dividem a Empresa. Lançamentos, estoque, tarefas, contas e freelancers usam esta lista. O subsetor "Fornecedores" tem cadastro próprio de fornecedores. Arquivar tira o subsetor das listas e formulários, mas guarda tudo o que já foi lançado nele.</p>
     <div class="alert" role="alert" id="subAlert"></div>${rows}
     <form data-form="subset" novalidate style="margin-top:16px"><div class="alert" role="alert"></div>
       <label class="f"><span>Novo subsetor</span><input name="nome" maxlength="40" placeholder="Ex.: Manutenção, Marketing" autocomplete="off"></label>
@@ -814,15 +827,23 @@ function fornModalHTML() {
       <label class="f"><span>Novo fornecedor</span><input name="nome" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
       <div class="acoes"><button class="btn pri full" type="submit">Adicionar fornecedor</button></div></form>`;
 }
+async function arquivarSub(id, arq) {
+  const av = $('#subAlert');
+  try {
+    await colSub().doc(id).update({ arquivado:arq });
+    const docs = SETORES_TODOS.map(x => x.id === id ? { ...x, arquivado:arq } : x); aplicarSubs(docs);
+    Store.set({ subset:{ ...Store.s.subset } }); abrirModal('Subsetores', subsModalHTML());
+  } catch (e) { if (av) { av.className = 'alert err on'; av.textContent = msgErro(e); } }
+}
 async function salvarSubset(f, d) {
   const av = f.querySelector('.alert'), erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const nome = (d.nome || '').trim();
   if (nome.length < 2) return erro('Digite o nome do subsetor. Exemplo: Manutenção');
-  if (SETORES.some(x => nomeIgual(x.nome, nome))) return erro('Já existe um subsetor com esse nome.');
+  if (SETORES_TODOS.some(x => nomeIgual(x.nome, nome))) return erro('Já existe um subsetor com esse nome.');
   try {
-    const ordem = SETORES.length + 1, ref = colSub().doc();
+    const ordem = SETORES_TODOS.length + 1, ref = colSub().doc();
     await ref.set({ nome, ordem, fixo:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
-    SETORES.push({ id:ref.id, nome, forn:false }); NOMES[ref.id] = nome;
+    aplicarSubs(SETORES_TODOS.concat([{ id:ref.id, nome, ordem }]));
     invalidarPainel(); Store.set({ subset:{ ok:true, erro:null } }); abrirModal('Subsetores', subsModalHTML());
   } catch (e) { erro(msgErro(e)); }
 }
@@ -1881,7 +1902,7 @@ function calcRel(d, esc, mes) {
   const lanc = f(d.lanc), ven = lanc.filter(x => x.tipo === 'venda'), cus = lanc.filter(x => x.tipo === 'custo');
   const vendas = somaK(ven, 'valor'), custos = somaK(cus, 'valor');
   const porCat = (a, cats) => cats.map(c => ({ c, v:somaK(a.filter(x => x.categoria === c), 'valor') })).concat([{ c:'Sem categoria', v:somaK(a.filter(x => !cats.includes(x.categoria)), 'valor') }]).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
-  const setores = SETORES.map(s => {
+  const setores = SETORES_TODOS.filter(s => !s.arquivado || d.lanc.some(x => x.setor === s.id && x.tipo === 'custo')).map(s => ({ ...s, nome:nomeSetor(s.id) })).map(s => {
     const v = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'venda'), 'valor'), c = somaK(d.lanc.filter(x => x.setor === s.id && x.tipo === 'custo'), 'valor'), m = d.metas[s.id + '_' + mes] || 0;
     return { ...s, v, c, r:v - c, m, mp:m > 0 ? v / m : null };
   });
@@ -2497,6 +2518,8 @@ const acoes = {
   lancNovo(el) { abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || subAtualId())); },
   empSub(el) { history.replaceState(null, '', '#/empresa'); Store.set({ rota:'empresa', emp:{ ...Store.s.emp, sub:el.dataset.s } }); },
   subsManage() { abrirModal('Subsetores', subsModalHTML()); },
+  subArquivar(el) { arquivarSub(el.dataset.id, true); },
+  subReativar(el) { arquivarSub(el.dataset.id, false); },
   fornManage() { abrirModal('Fornecedores', fornModalHTML()); },
   lancEditar(el) { const l = (Store.s.lanc.lista || []).find(x => x.id === el.dataset.id); if (l) abrirModal('Editar lançamento', formLanc(l)); },
   lancTipo(el) {
