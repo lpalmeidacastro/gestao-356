@@ -517,7 +517,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -662,7 +662,7 @@ function somar(docs) {
   const t = { vendas:0, custos:0, n:0, set:{}, sem:{ vendas:[0,0,0,0], custos:[0,0,0,0] } };
   docs.forEach(d => {
     const x = d.data();
-    const k = x.tipo === 'venda' ? 'vendas' : x.tipo === 'custo' ? 'custos' : null;
+    const k = x.tipo === 'custo' ? 'custos' : null;
     if (!k) return;
     const v = Number(x.valor) || 0;
     t[k] += v; t.n++;
@@ -676,14 +676,17 @@ function somar(docs) {
 async function buscarPainel(mes) {
   const ref = db.collection(`empresas/${EMPRESA}/lancamentos`);
   const faixa = m => ref.where('data', '>=', m + '-01').where('data', '<', mesAdd(m, 1) + '-01').get();
-  const [a, b, mt, en] = await Promise.all([
+  const [a, b, mt, en, va, vb] = await Promise.all([
     faixa(mes), faixa(mesAdd(mes, -1)),
     db.collection(`empresas/${EMPRESA}/metas`).get(),
-    db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get()
+    db.collection(`empresas/${EMPRESA}/energia`).where('mes', '==', mes).get(),
+    colVendasMes().doc(mes).get(), colVendasMes().doc(mesAdd(mes, -1)).get()
   ]);
   const metas = {};
   mt.docs.forEach(d => { if (d.id.endsWith('_' + mes)) metas[d.id.slice(0, -(mes.length + 1))] = Number(d.data().vendas) || 0; });
-  return { atual:somar(a.docs), anterior:somar(b.docs), metas, energia:en.docs.length ? somaEn(en.docs.map(d => d.data())) : null };
+  const atual = somar(a.docs), anterior = somar(b.docs);
+  atual.vendas = va.exists ? Number(va.data().valor) || 0 : 0; anterior.vendas = vb.exists ? Number(vb.data().valor) || 0 : 0;
+  return { atual, anterior, metas, energia:en.docs.length ? somaEn(en.docs.map(d => d.data())) : null };
 }
 let painelBusca = null;
 async function carregarPainel() {
@@ -1392,6 +1395,49 @@ async function salvarFree(f, d) {
 // empresas/356/produtos/{id}: nome, setor, categoria, unidade, qtd, minimo, custoUn, criadoPorUid, criadoEm
 const colLanc = () => db.collection(`empresas/${EMPRESA}/lancamentos`);
 const colProd = () => db.collection(`empresas/${EMPRESA}/produtos`);
+/* ============ venda do mês (total da loja inteira, um registro por mês) ============ */
+// empresas/356/vendasMes/{AAAA-MM}: valor, obs, atualizadoPorUid, atualizadoEm
+const colVendasMes = () => db.collection(`empresas/${EMPRESA}/vendasMes`);
+let vendasBusca = false;
+async function carregarVendasMes(forcar) {
+  if (vendasBusca || (Store.s.vendas.porMes && !forcar)) return;
+  vendasBusca = true;
+  try {
+    const q = await colVendasMes().get(), porMes = {};
+    q.docs.forEach(d => { porMes[d.id] = { valor:Number(d.data().valor) || 0, obs:d.data().obs || '' }; });
+    Store.set({ vendas:{ porMes, erro:null } });
+  } catch (e) { console.error(e); Store.set({ vendas:{ porMes:{}, erro:'Não foi possível carregar a venda do mês. ' + msgErro(e) } }); }
+  finally { vendasBusca = false; }
+}
+const vendaDoMes = mes => Number(((Store.s.vendas.porMes || {})[mes] || {}).valor) || 0;
+const temVendaMes = mes => !!(Store.s.vendas.porMes || {})[mes];
+const metaLoja = mes => (Store.s.metas.mapa || {})['loja_' + mes] || 0;
+const valorBR = v => Number(v) > 0 ? String(v).replace('.', ',') : '';
+function formVendaMes(mes) {
+  const r = (Store.s.vendas.porMes || {})[mes];
+  return `<form data-form="vendaMes" novalidate>
+    <div class="alert" role="alert"></div>
+    <p class="muted" style="font-size:13px;margin-bottom:12px">Um valor por mês: o total de vendas da loja inteira. Se o mês já tem venda, salvar troca o valor.</p>
+    <label class="f"><span>Mês</span><input name="mes" type="month" value="${esc(mes)}" max="${mesAtual()}"></label>
+    <label class="f"><span>Total de vendas do mês (R$)</span><input name="valor" inputmode="decimal" value="${esc(valorBR(r && r.valor))}" placeholder="48.250,00" autocomplete="off"></label>
+    <label class="f"><span>Observação (opcional)</span><input name="obs" value="${esc(r ? r.obs : '')}" maxlength="120" placeholder="Ex.: fechamento da maquininha + dinheiro" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${r ? 'Salvar alteração' : 'Salvar venda do mês'}</button></div></form>`;
+}
+async function salvarVendaMes(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const mes = d.mes || '', valor = parseValor(d.valor);
+  if (!/^\d{4}-\d{2}$/.test(mes)) return erro('Escolha o mês.');
+  if (mes > mesAtual()) return erro('O mês não pode ser no futuro.');
+  if (!(valor >= 0) || String(d.valor || '').trim() === '') return erro('Digite o total de vendas do mês. Exemplo: 48.250,00');
+  btn.disabled = true;
+  try {
+    const rec = { valor, obs:(d.obs || '').trim(), atualizadoPorUid:Store.s.user.uid, atualizadoEm:TS() };
+    await colVendasMes().doc(mes).set(rec, { merge:true });
+    invalidarPainel(); fecharModal();
+    Store.set({ vendas:{ porMes:{ ...(Store.s.vendas.porMes || {}), [mes]:{ valor, obs:rec.obs } }, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
 const CAT_VENDA = ['Balcão', 'Delivery', 'Evento', 'Online', 'Outras vendas'];
 const CAT_CUSTO = ['Mercadoria', 'Freelancers e folha', 'Aluguel', 'Energia', 'Impostos e taxas', 'Manutenção', 'Marketing', 'Outros custos'];
 const UNIDADES = ['un', 'kg', 'L', 'cx', 'pct'];
@@ -1420,7 +1466,7 @@ async function carregarEstoque() {
   } catch (e) { console.error(e); Store.set({ estoque:{ lista:[], erro:'Não foi possível carregar o estoque. ' + msgErro(e) } }); }
   finally { estBusca = false; }
 }
-const badgeTipo = tp => `<span class="badge ${tp === 'venda' ? 'ok' : 'err'}">${tp === 'venda' ? 'Venda' : 'Custo'}</span>`;
+const badgeTipo = tp => tp === 'venda' ? '<span class="badge">venda (antigo)</span>' : '<span class="badge err">Gasto</span>';
 function sitEstoque(p) { const q = Number(p.qtd) || 0, m = Number(p.minimo) || 0; return q <= 0 ? 'zerado' : q < m ? 'baixo' : 'ok'; }
 const fmtQtd = n => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits:2 });
 
@@ -1431,7 +1477,7 @@ function setorHTML(s, set) {
   const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${set.forn ? '<button class="btn" data-act="fornManage">Fornecedores</button>' : ''}<button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
   const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
-    <button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div></div>`;
   const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
     ${tab === 'lanc' ? `<div class="mes" role="group" aria-label="Mês"><button data-act="lmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(L.mes, false))}</span><button data-act="lmes" data-d="1" aria-label="Próximo mês" ${L.mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>` : ''}</div>`;
   const sk = `<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div>`;
@@ -1458,11 +1504,13 @@ function setorHTML(s, set) {
         ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum produto neste setor ainda. Use "+ Novo produto" para o primeiro.</div>`}</div></section></div>`;
   }
   const erro = L.erro ? `<div class="alert err on" role="alert">${esc(L.erro)} <button class="btn ghost" data-act="lancRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
-  if (L.chave !== L.mes || !L.lista) return head + erro + `<div class="stack">${tabs}${sk}</div>`;
+  if (L.chave !== L.mes || !L.lista || !Store.s.vendas.porMes) return head + erro + `<div class="stack">${tabs}${sk}</div>`;
   const ls = L.lista.filter(selS).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
-  const v = ls.filter(x => x.tipo === 'venda').reduce((a, x) => a + (Number(x.valor) || 0), 0), c = ls.filter(x => x.tipo === 'custo').reduce((a, x) => a + (Number(x.valor) || 0), 0);
-  const res = v - c;
-  const cards = `<div class="rcards">${cardE('var(--ok)', 'Vendas', brl(v), nBolL(ls.filter(x => x.tipo === 'venda').length))}${cardE('var(--err)', 'Custos', brl(c), nBolL(ls.filter(x => x.tipo === 'custo').length))}${cardE('var(--pur)', 'Resultado', brl(res), res >= 0 ? 'vendas menos custos' : 'no vermelho')}${cardE('var(--warn)', 'Margem', v > 0 ? pct(res / v) : '—', v > 0 ? 'resultado ÷ vendas' : 'sem vendas no mês')}</div>`;
+  const gs = ls.filter(x => x.tipo === 'custo'), c = somaK(gs, 'valor'), v = vendaDoMes(L.mes), res = v - c;
+  const maior = gs.slice().sort((a, b) => (Number(b.valor) || 0) - (Number(a.valor) || 0))[0];
+  const cards = todos
+    ? `<div class="rcards">${cardE('var(--ok)', 'Vendas', brl(v), temVendaMes(L.mes) ? 'total da loja no mês' : 'registre em "Venda do mês"')}${cardE('var(--err)', 'Gastos', brl(c), nBolL(gs.length))}${cardE('var(--pur)', 'Resultado', brl(res), res >= 0 ? 'vendas menos gastos' : 'no vermelho')}${cardE('var(--warn)', 'Margem', v > 0 ? pct(res / v) : '—', v > 0 ? 'resultado ÷ vendas' : 'sem venda do mês')}</div>`
+    : `<div class="rcards">${cardE('var(--err)', 'Gastos', brl(c), nBolL(gs.length))}${cardE('var(--warn)', 'Maior gasto', maior ? brl(maior.valor) : '—', maior ? esc(maior.fornecedorNome || maior.descricao || maior.categoria || '') + ' · ' + dataBR(maior.data) : 'sem gastos no mês')}</div>`;
   const rows = ls.map(x => `<div class="brow" role="row">
       <div class="bnome"><b title="${esc(x.fornecedorNome || x.descricao || x.categoria)}">${esc(x.fornecedorNome || x.descricao || x.categoria || 'Sem descrição')}</b><span>${[todos ? nomeSetor(x.setor) : '', x.fornecedorNome && x.descricao ? x.descricao : '', x.categoria || '', Number(x.juros) > 0 ? 'juros ' + brl(x.juros) : ''].filter(Boolean).map(esc).join(' · ')}</span></div>
       <div class="bven">${dataBR(x.data)}</div><div class="bval">${brl(x.valor)}</div><div class="bst">${badgeTipo(x.tipo)}</div>
@@ -1470,7 +1518,7 @@ function setorHTML(s, set) {
         <button class="ib" data-act="lancEditar" data-id="${esc(x.id)}" aria-label="Editar lançamento">${ico('edit')}</button></div></div>`).join('');
   const porForn = set.forn ? Object.entries(ls.filter(x => x.tipo === 'custo').reduce((o, x) => { const n = x.fornecedorNome || 'Sem fornecedor'; o[n] = (o[n] || 0) + (Number(x.valor) || 0); return o; }, {})).sort((a, b) => b[1] - a[1]) : [];
   const fornPainel = set.forn ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Gasto por fornecedor em ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div>${porForn.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th style="text-align:right">Total</th></tr></thead><tbody>${porForn.map(([n, t]) => `<tr><td style="color:var(--t1)">${esc(n)}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${brl(t)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="pb muted" style="font-size:14px">Nenhum custo com fornecedor neste mês.</div>'}</section>` : '';
-  return head + erro + `<div class="stack">${tabs}${todos ? '' : metaCard(set, L.mes, v)}${cards}${fornPainel}
+  return head + erro + `<div class="stack">${tabs}${todos ? metaCard(L.mes, v) : ''}${cards}${fornPainel}
     <section class="panel" style="margin:0"><div class="ph2"><h3>Lançamentos de ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div><div role="table">
       <div class="brow hd" role="row"><span>Lançamento</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum lançamento deste setor em ${esc(mesNome(L.mes, true).toLowerCase())}. Use "+ Novo lançamento".</div>`}</div></section></div>`;
@@ -1478,14 +1526,14 @@ function setorHTML(s, set) {
 const nBolL = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
 
 function formLanc(l, setorPadrao, tipoPadrao) {
-  const tipo = l ? l.tipo : (tipoPadrao || 'venda'), admin = Store.s.perfil.papel === 'admin';
+  const tipo = l && l.tipo === 'venda' ? 'venda' : 'custo', admin = Store.s.perfil.papel === 'admin';
   const setor = l ? l.setor : (setorPadrao || SETORES[0].id);
   const FL = (Store.s.forn.lista || []), semForn = !FL.length;
   const optsForn = FL.map(x => `<option value="${esc(x.id)}" ${l && l.fornecedorId === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
   const cats = tp => (tp === 'venda' ? CAT_VENDA : CAT_CUSTO).map(c => `<option ${l && l.categoria === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
-    <div class="f"><span>Tipo</span><div class="seg" role="group" aria-label="Tipo" id="tipoSeg"><button type="button" class="${tipo === 'venda' ? 'on' : ''}" data-act="lancTipo" data-t="venda">Venda</button><button type="button" class="${tipo === 'custo' ? 'on' : ''}" data-act="lancTipo" data-t="custo">Custo</button></div><input type="hidden" name="tipo" value="${tipo}"></div>
+    <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
     <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
     <div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
       <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${optsForn}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
@@ -1503,7 +1551,7 @@ async function salvarLanc(f, d) {
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const valor = parseValor(d.valor), data = d.data || '';
-  if (!['venda', 'custo'].includes(d.tipo)) return erro('Escolha se é venda ou custo.');
+  if (d.tipo !== 'custo' && !(d.tipo === 'venda' && f.dataset.id)) return erro('Tipo inválido.');
   if (!SETORES.some(x => x.id === d.setor)) return erro('Escolha o setor.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
@@ -1591,12 +1639,12 @@ async function carregarMetas() {
   } catch (e) { console.error(e); Store.set({ metas:{ mapa:{}, erro:'Não foi possível carregar as metas. ' + msgErro(e) } }); }
   finally { metasBusca = false; }
 }
-function metaCard(set, mes, vendas) {
-  const M = Store.s.metas, meta = (M.mapa || {})[set.id + '_' + mes] || 0;
+function metaCard(mes, vendas) {
+  const M = Store.s.metas, meta = metaLoja(mes), set = { nome:'a loja' };
   const mesTxt = mesNome(mes, true).toLowerCase();
   if (!M.mapa) return `<div class="box"><div class="skel" style="width:40%"></div></div>`;
-  const btn = `<button class="btn" data-act="metaEditar" data-setor="${set.id}" data-mes="${mes}" style="height:44px">${meta > 0 ? 'Editar meta' : 'Definir meta'}</button>`;
-  if (!(meta > 0)) return `<div class="box"><div class="bh" style="margin:0"><div><h2>Meta de vendas</h2><p class="muted" style="font-size:13px;margin-top:4px">Sem meta definida para ${esc(mesTxt)}. Defina quanto este subsetor quer vender no mês.</p></div>${btn}</div></div>`;
+  const btn = `<button class="btn" data-act="metaEditar" data-setor="loja" data-mes="${mes}" style="height:44px">${meta > 0 ? 'Editar meta' : 'Definir meta'}</button>`;
+  if (!(meta > 0)) return `<div class="box"><div class="bh" style="margin:0"><div><h2>Meta de vendas</h2><p class="muted" style="font-size:13px;margin-top:4px">Sem meta definida para ${esc(mesTxt)}. Defina quanto a loja quer vender no mês.</p></div>${btn}</div></div>`;
   const prog = Math.min(100, Math.round(vendas / meta * 100)), falta = meta - vendas;
   return `<div class="box"><div class="bh"><h2>Meta de vendas · ${esc(mesTxt)}</h2>${btn}</div>
     <div class="meta"><div class="r"><span>${brl(vendas)} de ${brl(meta)}</span><b>${prog}%</b></div>
@@ -2151,40 +2199,38 @@ function painelHTML(s, nomeCurto) {
       <span aria-live="polite">${esc(mesCurto)}</span>
       <button data-act="mes" data-d="1" aria-label="Próximo mês" ${podeAvancar ? '' : 'disabled'}>${ico('dir')}</button>
     </div>
-    <button class="btn pri" data-act="lancNovo">+ Novo lançamento</button></div>
+    <button class="btn" data-act="vendaMes" data-mes="${p.mes}">Venda do mês</button><button class="btn pri" data-act="lancNovo">+ Novo lançamento</button></div>
   </div>`;
   if (p.erro) return head + `<div class="alert err on" role="alert">${esc(p.erro)}</div><button class="btn" data-act="recarregarPainel">Tentar de novo</button>`;
   if (!d) return head + `<div class="stack"><div class="kpis"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div><div class="skbox" style="height:220px"></div></div>`;
 
   const a = d.atual, b = d.anterior;
   const lucro = a.vendas - a.custos, lucroAnt = b.vendas - b.custos;
-  const semDados = a.n === 0;
+  const semDados = a.n === 0 && !(a.vendas > 0);
   const margem = a.vendas > 0 ? pct(lucro / a.vendas) : null;
   const en = d.energia;
   const eco = en ? ecoEn(en) : 0;
   const ecoPct = en ? ecoPctEn(en) : 0;
   const kpi = (cls, label, valor, dl, sub) => `<div class="box kpi hov ${cls}"><div class="top"><span>${label}</span>${dl}</div><div class="val">${valor}</div><div class="sub">${sub}</div></div>`;
   const kpis = [
-    kpi('', 'Vendas', brl(a.vendas), delta(a.vendas, b.vendas), semDados ? 'Sem lançamentos neste mês' : (b.vendas > 0 ? 'vs. mês anterior (' + brl(b.vendas) + ')' : 'primeiro mês com lançamentos')),
-    kpi('', 'Custos', brl(a.custos), delta(a.custos, b.custos), semDados ? 'Sem lançamentos neste mês' : 'compras, folha, freelancers, contas'),
+    kpi('', 'Vendas', brl(a.vendas), delta(a.vendas, b.vendas), a.vendas > 0 ? (b.vendas > 0 ? 'vs. mês anterior (' + brl(b.vendas) + ')' : 'total da loja no mês') : 'registre em "Venda do mês"'),
+    kpi('', 'Gastos', brl(a.custos), delta(a.custos, b.custos), a.n === 0 ? 'Sem gastos lançados neste mês' : 'gastos lançados no mês'),
     kpi('hero', 'Lucro', brl(lucro), lucroAnt > 0 && lucro > 0 ? delta(lucro, lucroAnt) : '', margem ? 'margem de ' + margem : 'aparece com vendas lançadas'),
     kpi('', 'Economia solar', brl(en ? eco : 0), en ? `<span class="dl up">${pct(ecoPct)}</span>` : '', en ? (Number(en.injetado) || 0).toLocaleString('pt-BR') + ' kWh injetados' : 'Sem dados de energia neste mês')
   ].join('');
 
   const setCards = SETORES.map(x => {
-    const v = d.atual.set[x.id] || { vendas:0, custos:0 };
-    const mg = v.vendas > 0 ? pct((v.vendas - v.custos) / v.vendas) : '—';
-    const meta = d.metas[x.id] || 0;
-    const prog = meta > 0 ? Math.min(100, Math.round(v.vendas / meta * 100)) : 0;
+    const g = (d.atual.set[x.id] || { custos:0 }).custos, ga = (d.anterior.set[x.id] || { custos:0 }).custos;
+    const pg = a.custos > 0 ? Math.round(g / a.custos * 100) : 0;
     return `<a class="box hov setc" href="#/${x.id}">
-      <div class="t"><b>${esc(x.nome)}</b></div>
-      <div><div class="v">${brl(v.vendas)}</div><div class="l">vendas no mês · margem ${mg}</div></div>
-      <div class="meta"><div class="r"><span>Meta</span><b>${meta > 0 ? prog + '% de ' + brl(meta).replace(',00', '') : 'não definida'}</b></div>
-        <div class="trk" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prog}" aria-label="Meta de ${esc(x.nome)}"><div style="width:${prog}%"></div></div></div>
+      <div class="t"><b>${esc(x.nome)}</b>${delta(g, ga)}</div>
+      <div><div class="v">${brl(g)}</div><div class="l">gasto no mês</div></div>
+      <div class="meta"><div class="r"><span>Dos gastos da loja</span><b>${pg}%</b></div>
+        <div class="trk" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pg}" aria-label="Parte de ${esc(x.nome)} nos gastos"><div style="width:${pg}%"></div></div></div>
     </a>`;
   }).join('');
 
-  const m = p.metrica, serie = a.sem[m], max = Math.max(...serie, 1);
+  const m = 'custos', serie = a.sem[m], max = Math.max(...serie, 1);
   const tem = serie.some(v => v > 0);
   const grafico = tem
     ? `<div class="bars" role="img" aria-label="${m === 'vendas' ? 'Vendas' : 'Custos'} por semana: ${serie.map(brlMil).join('; ')}">${serie.map((v, i) =>
@@ -2196,14 +2242,14 @@ function painelHTML(s, nomeCurto) {
   return head + `
   <div class="stack">
     <section aria-label="Resumo do mês" class="kpis">${kpis}</section>
+    ${metaCard(p.mes, a.vendas)}
     <section aria-label="Setores">
       <div class="sec-h"><h2>Setores</h2></div>
       <div class="sets">${setCards}</div>
     </section>
     <section class="two">
       <div class="box">
-        <div class="bh"><h2>${m === 'vendas' ? 'Vendas' : 'Custos'} por semana</h2>
-          <div class="seg" role="group" aria-label="Métrica"><button data-act="metrica" data-m="vendas" class="${m === 'vendas' ? 'on' : ''}">Vendas</button><button data-act="metrica" data-m="custos" class="${m === 'custos' ? 'on' : ''}">Custos</button></div></div>
+        <div class="bh"><h2>Gastos por semana</h2></div>
         ${grafico}
       </div>
       ${boletosCard(s)}
@@ -2253,8 +2299,8 @@ function page(id, s, nomeCurto) {
 
 /* após desenhar uma página, carrega o que ela precisa */
 async function aposPagina(id, s) {
-  if (id === 'painel') { carregarPainel(); return; }
-  if (id === 'empresa') { carregarLanc(); carregarEstoque(); carregarMetas(); return; }
+  if (id === 'painel') { carregarPainel(); carregarMetas(); carregarVendasMes(); return; }
+  if (id === 'empresa') { carregarLanc(); carregarEstoque(); carregarMetas(); carregarVendasMes(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
   if (id === 'pessoal') { carregarPes(); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
@@ -2514,7 +2560,8 @@ const acoes = {
     try { await colProd().doc(id).delete(); fecharModal(); Store.set({ estoque:{ lista:E.lista.filter(x => x.id !== id), erro:null } }); }
     catch (e) { fecharModal(); Store.set({ estoque:{ ...E, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
-  metaEditar(el) { const set = SETORES.find(x => x.id === el.dataset.setor); if (!set) return; abrirModal('Meta de vendas', formMeta(set, el.dataset.mes, (Store.s.metas.mapa || {})[set.id + '_' + el.dataset.mes] || 0)); },
+  metaEditar(el) { abrirModal('Meta de vendas', formMeta({ id:'loja', nome:'a loja' }, el.dataset.mes, metaLoja(el.dataset.mes))); },
+  vendaMes(el) { abrirModal('Venda do mês', formVendaMes(el.dataset.mes || mesAtual())); },
   tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor || subAtualId())); },
   tarEditar(el) { const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (x) abrirModal('Editar tarefa', formTar(x)); },
   tarFiltro(el) { Store.set({ tar:{ ...Store.s.tar, filtro:el.dataset.f } }); },
@@ -2663,6 +2710,7 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'fornRen') { await renomearForn(f, d); return; }
   if (f.dataset.form === 'produto') { await salvarProd(f, d); return; }
   if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
+  if (f.dataset.form === 'vendaMes') { await salvarVendaMes(f, d); return; }
   if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
   if (f.dataset.form === 'energia') { await salvarEnergia(f, d); return; }
   if (f.dataset.form === 'pessoal') { await salvarPes(f, d); return; }
@@ -2690,6 +2738,11 @@ document.addEventListener('change', e => {
   if (!f) return;
   if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
+});
+document.addEventListener('change', e => {
+  const t = e.target, f = t && t.closest ? t.closest('form[data-form=vendaMes]') : null;
+  if (!f || t.name !== 'mes') return;
+  const r = (Store.s.vendas.porMes || {})[t.value]; f.querySelector('[name=valor]').value = valorBR(r && r.valor); f.querySelector('[name=obs]').value = r ? r.obs : '';
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
 
