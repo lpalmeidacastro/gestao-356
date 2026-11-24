@@ -555,7 +555,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, catemp:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -841,6 +841,46 @@ async function carregarForn(forcar) {
     Store.set({ forn:{ lista, erro:null } });
   } catch (e) { console.error(e); Store.set({ forn:{ lista:Store.s.forn.lista || [], erro:'Não foi possível carregar os fornecedores. ' + msgErro(e) } }); }
   finally { fornBusca = false; }
+}
+const colCatEmp = () => db.collection(`empresas/${EMPRESA}/categorias`);
+let catEmpBusca = false;
+async function carregarCatEmp(forcar) {
+  if (catEmpBusca || (Store.s.catemp.lista && !forcar)) return;
+  catEmpBusca = true;
+  try {
+    const q = await colCatEmp().get();
+    const lista = q.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    Store.set({ catemp:{ lista, erro:null } });
+  } catch (e) { console.error(e); Store.set({ catemp:{ lista:Store.s.catemp.lista || [], erro:null } }); }
+  finally { catEmpBusca = false; }
+}
+// categorias de gasto da empresa: as fixas + as criadas pelo app (sem repetir); "atual" mantém a de um lançamento antigo
+function catsEmpresa(atual) {
+  const nomes = CAT_CUSTO.slice();
+  ((Store.s.catemp && Store.s.catemp.lista) || []).forEach(c => { if (!nomes.some(n => nomeIgual(n, c.nome))) nomes.push(c.nome); });
+  if (atual && !nomes.includes(atual)) nomes.push(atual);
+  return nomes;
+}
+function validarNovaCat(nome, existentes) {
+  nome = (nome || '').trim();
+  if (nome.length < 2) return { erro:'Digite o nome da nova categoria. Exemplo: Embalagens' };
+  if (nome.length > 40) return { erro:'O nome da categoria pode ter até 40 letras.' };
+  if (existentes.some(n => nomeIgual(n, nome))) return { erro:'Essa categoria já existe. Escolha ela na lista.' };
+  return { nome };
+}
+async function criarCatEmp(nome) {
+  const L = (Store.s.catemp.lista || []), ordem = Math.max(0, ...L.map(c => c.ordem || 0)) + 1, ref = colCatEmp().doc();
+  await ref.set({ nome, ordem, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+  Store.set({ catemp:{ lista:L.concat([{ id:ref.id, nome, ordem }]), erro:null } });
+}
+function catsEmpModalHTML() {
+  const admin = Store.s.perfil.papel === 'admin', extras = (Store.s.catemp.lista || []).filter(c => !CAT_CUSTO.some(n => nomeIgual(n, c.nome)));
+  const fixas = CAT_CUSTO.map(n => `<div class="frow" style="padding:6px 0;border-bottom:1px solid var(--line)"><span style="color:var(--t1)">${esc(n)}</span></div>`).join('');
+  const novas = extras.map(c => `<div class="frow" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)"><span style="color:var(--t1)">${esc(c.nome)}</span>${admin ? `<button class="ib" data-act="catEmpDel" data-id="${esc(c.id)}" aria-label="Remover ${esc(c.nome)}">${ico('close')}</button>` : ''}</div>`).join('');
+  return `<p class="muted" style="font-size:13px">Para criar uma categoria nova, use "+ Nova categoria…" ao lançar um gasto. Remover não apaga lançamentos antigos: eles mantêm o nome.</p>
+    <div class="alert" role="alert" id="catEmpAlert"></div>
+    <h3 style="font-size:14px;margin:16px 0 8px">Categorias criadas por vocês</h3>${novas || '<p class="muted" style="font-size:13px">Nenhuma ainda.</p>'}
+    <h3 style="font-size:14px;margin:16px 0 8px">Categorias padrão</h3>${fixas}`;
 }
 const subAtualId = () => (Store.s.rota === 'empresa' && Store.s.emp.sub !== 'todos' && SETORES.some(x => x.id === Store.s.emp.sub)) ? Store.s.emp.sub : null;
 const nomeIgual = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -1533,7 +1573,7 @@ function setorHTML(s, set) {
   const selS = x => todos || x.setor === set.id;
   const chipSub = (id, nome) => `<button class="chip ${set.id === id ? 'on' : ''}" data-act="empSub" data-s="${esc(id)}">${esc(nome)}</button>`;
   const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${set.forn ? '<button class="btn" data-act="fornManage">Fornecedores</button>' : ''}<button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${set.forn ? '<button class="btn" data-act="fornManage">Fornecedores</button>' : ''}<button class="btn" data-act="catsManage">Categorias</button><button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
   const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div></div>`;
   const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
@@ -1588,7 +1628,7 @@ function formLanc(l, setorPadrao, tipoPadrao) {
   const setor = l ? l.setor : (setorPadrao || SETORES[0].id);
   const FL = (Store.s.forn.lista || []), semForn = !FL.length;
   const optsForn = FL.map(x => `<option value="${esc(x.id)}" ${l && l.fornecedorId === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
-  const cats = tp => (tp === 'venda' ? CAT_VENDA : CAT_CUSTO).map(c => `<option ${l && l.categoria === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  const cats = tp => (tp === 'venda' ? CAT_VENDA : catsEmpresa(l && l.categoria)).map(c => `<option ${l && l.categoria === c ? 'selected' : ''}>${esc(c)}</option>`).join('') + (tp === 'venda' ? '' : '<option value="__nova">+ Nova categoria…</option>');
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
@@ -1600,14 +1640,16 @@ function formLanc(l, setorPadrao, tipoPadrao) {
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f" data-catemp><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
-    ${!l && ehDonoPes() ? `<label class="f hide" data-catpes><span>Categoria pessoal</span><select name="categoriaPes">${opcoesCat('gasto', '')}</select></label>` : ''}
+    <label class="f hide" data-novacat><span>Nome da nova categoria</span><input name="novaCategoria" maxlength="40" placeholder="Ex.: Embalagens" autocomplete="off"></label>
+    ${!l && ehDonoPes() ? `<label class="f hide" data-catpes><span>Categoria pessoal</span><select name="categoriaPes">${opcoesCat('gasto', '')}</select></label>
+    <label class="f hide" data-novacatpes><span>Nome da nova categoria</span><input name="novaCategoriaPes" maxlength="40" placeholder="Ex.: Pet" autocomplete="off"></label>` : ''}
     ${jurosCampo(l && l.juros, tipo === 'custo' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${l ? esc(l.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Fechamento do caixa, NF 4821" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${l ? 'Salvar alterações' : 'Salvar lançamento'}</button>
     ${l && admin ? `<button type="button" class="btn bad full" data-act="lancApagar" data-id="${esc(l.id)}">Apagar lançamento</button>` : ''}</div></form>`;
 }
 async function salvarLanc(f, d) {
-  if (d.setor === '__pes' && ehDonoPes() && !f.dataset.id) return salvarPes(f, { tipo:'gasto', valor:d.valor, data:d.data, categoria:d.categoriaPes || '', descricao:d.descricao, juros:d.juros });
+  if (d.setor === '__pes' && ehDonoPes() && !f.dataset.id) return salvarPes(f, { tipo:'gasto', valor:d.valor, data:d.data, categoria:d.categoriaPes || '', novaCategoria:d.novaCategoriaPes, descricao:d.descricao, juros:d.juros });
   const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const valor = parseValor(d.valor), data = d.data || '';
@@ -1617,6 +1659,8 @@ async function salvarLanc(f, d) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
   const JJ = d.tipo === 'custo' ? lerJuros(d, valor) : { j:0 }; if (JJ.erro) return erro(JJ.erro);
+  let catNome = d.categoria || '';
+  if (catNome === '__nova') { const r = validarNovaCat(d.novaCategoria, catsEmpresa('')); if (r.erro) return erro(r.erro); catNome = r.nome; }
   const precisaForn = d.setor === ID_FORN && d.tipo === 'custo';
   const novoNome = (d.novoFornecedor || '').trim();
   if (precisaForn) {
@@ -1626,8 +1670,9 @@ async function salvarLanc(f, d) {
   btn.disabled = true;
   try {
     let forn = null;
+    if (d.categoria === '__nova') await criarCatEmp(catNome);
     if (precisaForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
-    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), juros:JJ.j, fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
+    const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:catNome, descricao:(d.descricao || '').trim(), juros:JJ.j, fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
     const L = Store.s.lanc; let ref = id ? colLanc().doc(id) : colLanc().doc(), novo = null;
     if (id) await ref.update(mud);
     else { novo = { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(novo); }
@@ -2141,8 +2186,8 @@ const nLanc = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
 function opcoesCat(tp, atual) {
   const nomes = catsDe(Store.s.pes, tp).map(c => c.nome);
   if (atual && !nomes.includes(atual)) nomes.push(atual);
-  if (!nomes.length) return '<option value="">Sem categoria</option>';
-  return nomes.map(n => `<option ${atual === n ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  const base = nomes.length ? nomes.map(n => `<option ${atual === n ? 'selected' : ''}>${esc(n)}</option>`).join('') : '<option value="">Sem categoria</option>';
+  return base + '<option value="__nova">+ Nova categoria…</option>';
 }
 function formPes(m, tipoPadrao) {
   const tipo = m ? m.tipo : (tipoPadrao || 'gasto');
@@ -2152,6 +2197,7 @@ function formPes(m, tipoPadrao) {
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${m ? esc(String(m.valor).replace('.', ',')) : ''}" placeholder="123,45" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${m ? esc(m.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f"><span>Categoria</span><select name="categoria" id="catSel">${opcoesCat(tipo, m ? m.categoria : '')}</select></label>
+    <label class="f hide" data-novacat><span>Nome da nova categoria</span><input name="novaCategoria" maxlength="40" placeholder="Ex.: Pet" autocomplete="off"></label>
     ${jurosCampo(m && m.juros, tipo === 'gasto' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${m ? esc(m.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Feira da semana, aluguel apto 12" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${m ? 'Salvar alterações' : 'Salvar'}</button>
@@ -2166,9 +2212,16 @@ async function salvarPes(f, d) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
   const JJ = d.tipo === 'gasto' ? lerJuros(d, valor) : { j:0 }; if (JJ.erro) return erro(JJ.erro);
+  let catNome = d.categoria || '';
+  if (catNome === '__nova') { const r = validarNovaCat(d.novaCategoria, catsDe(Store.s.pes, d.tipo).map(c => c.nome)); if (r.erro) return erro(r.erro); catNome = r.nome; }
   btn.disabled = true;
   try {
-    const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:d.categoria || '', descricao:(d.descricao || '').trim(), juros:JJ.j };
+    if (d.categoria === '__nova') {
+      const P0 = Store.s.pes, cs = P0.cats || [], ordem = Math.max(0, ...cs.map(c => c.ordem || 0)) + 1, cref = colPesCat().doc();
+      await cref.set({ nome:catNome, tipo:d.tipo, ordem, criadoPorUid:Store.s.user.uid });
+      Store.set({ pes:{ ...P0, cats:cs.concat([{ id:cref.id, nome:catNome, tipo:d.tipo, ordem }]) } });
+    }
+    const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:catNome, descricao:(d.descricao || '').trim(), juros:JJ.j };
     const P = Store.s.pes; const ref = id ? colPes().doc(id) : colPes().doc();
     if (id) await ref.update(mud); else await ref.set({ ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
@@ -2486,6 +2539,7 @@ function render() {
     aposPagina(id, s);
     if (!s.subset.ok) carregarSubs();
     if (s.forn.lista === null) carregarForn();
+    if (s.catemp.lista === null) carregarCatEmp();
     if (s.boletos.lista === null) carregarBoletos();
     if (s.contas.defs === null) carregarContas(false, 'contas');
     if (s.free.lista === null) carregarFree();
@@ -2644,6 +2698,12 @@ const acoes = {
   },
   async lancNovo(el) { if (ehDonoPes() && !Store.s.pes.cats) await carregarPes(); abrirModal('Novo lançamento', formLanc(null, el.dataset.setor || subAtualId())); },
   empSub(el) { history.replaceState(null, '', '#/empresa'); Store.set({ rota:'empresa', emp:{ ...Store.s.emp, sub:el.dataset.s } }); },
+  catsManage() { abrirModal('Categorias de gastos', catsEmpModalHTML()); },
+  async catEmpDel(el) {
+    const id = el.dataset.id, L = Store.s.catemp.lista || [];
+    try { await colCatEmp().doc(id).delete(); Store.set({ catemp:{ lista:L.filter(c => c.id !== id), erro:null } }); abrirModal('Categorias de gastos', catsEmpModalHTML()); }
+    catch (e) { const av = $('#catEmpAlert'); if (av) { av.className = 'alert err on'; av.textContent = 'Não foi possível remover. ' + msgErro(e); } }
+  },
   subsManage() { abrirModal('Subsetores', subsModalHTML()); },
   subArquivar(el) { arquivarSub(el.dataset.id, true); },
   subReativar(el) { arquivarSub(el.dataset.id, false); },
@@ -2652,7 +2712,8 @@ const acoes = {
   lancTipo(el) {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
     f.querySelectorAll('#tipoSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === tp));
-    f.querySelector('#catSel').innerHTML = (tp === 'venda' ? CAT_VENDA : CAT_CUSTO).map(c => `<option>${esc(c)}</option>`).join('');
+    f.querySelector('#catSel').innerHTML = (tp === 'venda' ? CAT_VENDA : catsEmpresa('')).map(c => `<option>${esc(c)}</option>`).join('') + (tp === 'venda' ? '' : '<option value="__nova">+ Nova categoria…</option>');
+    const nc = f.querySelector('[data-novacat]'); if (nc) nc.classList.add('hide');
     const jj = f.querySelector('[data-juros]'); if (jj) jj.classList.toggle('hide', tp !== 'custo');
   },
   setorTab(el) { Store.set({ lanc:{ ...Store.s.lanc, tab:el.dataset.t } }); },
@@ -2757,6 +2818,7 @@ const acoes = {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
     f.querySelectorAll('#tipoSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === tp));
     f.querySelector('#catSel').innerHTML = opcoesCat(tp, '');
+    const nc = f.querySelector('[data-novacat]'); if (nc) nc.classList.add('hide');
     const jj = f.querySelector('[data-juros]'); if (jj) jj.classList.toggle('hide', tp !== 'gasto');
   },
   pesApagar(el) {
@@ -2890,6 +2952,8 @@ document.addEventListener('change', e => {
   const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
   if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } }
+  if (t.name === 'categoria') { const n = f.querySelector('[data-novacat]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
+  if (t.name === 'categoriaPes') { const n = f.querySelector('[data-novacatpes]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
 });
 document.addEventListener('change', e => {
