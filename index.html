@@ -36,7 +36,7 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --mono:ui-monospace,'SF Mono',Menlo,monospace;
   --ease:cubic-bezier(.2,.8,.2,1);
   --w1:rgba(255,255,255,.02); --w2:rgba(255,255,255,.05); --btnbg:#16161c; --pur:#b98cff; --errt:#ff8fa3; --navoff2:#a3a5b2; --mask:rgba(0,0,0,.6); --navoff:#a3a5b2;
-  --s1:#a47bff; --s2:#ec4fb0; --s3:#ff5d6c; --s4:#ffa94d; --s5:#3cc9b4; --s6:#5aa9ff; --s7:#d4c15a; --s0:#80828f;
+  --s1:#a47bff; --s2:#ffa94d; --s3:#3cc9b4; --s4:#ec4fb0; --s5:#5aa9ff; --s6:#d4c15a; --s7:#ff5d6c; --s0:#80828f;
   --okbg:rgba(62,207,142,.12); --sombra:none; color-scheme:dark;
 }
 :root[data-tema=claro]{
@@ -45,12 +45,13 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --t1:#1c1814; --t2:#3d362e; --t3:#5f574c; --t4:#6f665a;
   --link:#6420d4; --foco:#6420d4; --ok:#0f7a4d; --warn:#955400; --err:#c11340;
   --pur:#6420d4; --errt:#c11340; --w1:rgba(45,35,20,.04); --w2:rgba(45,35,20,.07); --btnbg:#fbf8f1; --mask:rgba(28,24,20,.45); --navoff:#3d362e;
-  --s1:#6a35d9; --s2:#b3127a; --s3:#d4153f; --s4:#b85a06; --s5:#0e8577; --s6:#1f6fd1; --s7:#857410; --s0:#8a8378;
+  --s1:#6a35d9; --s2:#c2650a; --s3:#0e8577; --s4:#b3127a; --s5:#1f6fd1; --s6:#857410; --s7:#d4153f; --s0:#8a8378;
   --nav-on:linear-gradient(90deg,rgba(123,47,247,.16),rgba(240,22,74,.07));
   --sombra:0 1px 2px rgba(60,40,10,.08); color-scheme:light;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:var(--bg);color:var(--t2);font:400 15px/1.5 Inter,system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select{font:inherit;color:inherit}
 h1,h2,h3{color:var(--t1);font-weight:590;text-wrap:balance}
@@ -171,7 +172,8 @@ input::placeholder{color:var(--t4)}
 .sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:16px}
 .sec-h h2{font-size:18px}
 .sec-h a{font-size:13px;font-weight:510;text-decoration:none}
-.sets{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.sets{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.acts{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .setc{display:flex;flex-direction:column;gap:16px}
 .setc .t{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .setc .t b{font-weight:590;color:var(--t1)}
@@ -195,6 +197,7 @@ input::placeholder{color:var(--t4)}
 .bars .c{display:flex;flex-direction:column;gap:8px;height:100%;justify-content:flex-end}
 .bars .c .n{font-size:12px;color:var(--t1);text-align:center;font-weight:510}
 .bars .c .b{width:100%;border-radius:10px 10px 4px 4px;background:var(--grad);min-height:8px;transform-origin:bottom;animation:sobe .45s var(--ease) both}
+.bars .c .b.z{background:var(--track,var(--line2));animation:none}
 .bars .c .s{font-size:12px;color:var(--t3);text-align:center}
 @keyframes sobe{from{transform:scaleY(.2);opacity:0}to{transform:none;opacity:1}}
 .mini{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px}
@@ -236,6 +239,7 @@ tbody tr:hover{background:var(--w1)}
 .analise .up{color:var(--errt)} .analise .dn{color:var(--ok)}
 @media (max-width:760px){.analise .gr{grid-template-columns:1fr;padding:16px}.analise .pz svg{max-width:180px}}
 .analise td{white-space:nowrap}
+@media (max-width:760px){.atab th:nth-child(3),.atab td:nth-child(3),.atab th:nth-child(n+5),.atab td:nth-child(n+5),.gsub th:nth-child(3),.gsub td:nth-child(3),.gsub th:nth-child(4),.gsub td:nth-child(4),.gsub th:nth-child(6),.gsub td:nth-child(6){display:none}.atab th,.atab td,.gsub th,.gsub td{padding-left:10px;padding-right:10px}}
 .badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:9999px;font-size:11px;font-weight:590;border:1px solid var(--line2);color:var(--t3);background:var(--w1)}
 .badge.ind{color:var(--link);border-color:rgba(199,166,255,.3);background:rgba(123,47,247,.12)}
 .badge.ok{color:var(--ok);border-color:rgba(62,207,142,.3);background:rgba(62,207,142,.08)}
@@ -261,7 +265,7 @@ tbody tr:hover{background:var(--w1)}
 .rc .v{font-family:var(--titulo);font-size:24px;color:var(--t1);overflow-wrap:anywhere}
 .rc .q{font-size:12px;color:var(--t3)}
 .dot{width:8px;height:8px;border-radius:50%;flex:none}
-.brow{display:grid;grid-template-columns:minmax(0,2.6fr) 1.2fr 1fr .9fr auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
+.brow{display:grid;grid-template-columns:minmax(0,2.6fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr) var(--act,230px);gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
 .brow:hover{background:var(--w1)}
 .brow.hd{background:var(--w1);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
 .brow.hd:hover{background:var(--w1)}
@@ -279,7 +283,7 @@ tbody tr:hover{background:var(--w1)}
 .rc.est{cursor:default}.rc.est:hover{transform:none}
 .dnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dnav .dl{font-size:15px;font-weight:510;color:var(--t1);min-width:210px;text-align:center}
-.frow{display:grid;grid-template-columns:minmax(0,2fr) .9fr auto auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
+.frow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,.9fr) 190px 180px;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);transition:background-color .18s var(--ease)}
 .frow:hover{background:var(--w1)}
 .frow.ina{opacity:.55}
 .fval{text-align:right;color:var(--t1);font-weight:510;font-variant-numeric:tabular-nums}
@@ -290,7 +294,7 @@ tbody tr:hover{background:var(--w1)}
 .fseg button.on.f{background:rgba(255,92,122,.14);color:var(--errt)}
 .fact{display:flex;align-items:center;justify-content:flex-end;gap:6px}
 .btn.pgok{background:rgba(62,207,142,.1);border-color:rgba(62,207,142,.3);color:var(--ok);height:44px}
-.mrow{display:grid;grid-template-columns:minmax(0,1.8fr) .5fr .5fr 1fr 1fr 1fr auto;gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.mrow{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,.5fr) minmax(0,.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) var(--act,124px);gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .mrow.hd{background:var(--w1);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
 .mrow .mc{text-align:right;color:var(--t1)}
 .mrow .mc.z{color:var(--t3)}
@@ -358,13 +362,22 @@ input[type=date]{color-scheme:dark}
   .tabbar a.on svg{color:var(--link)}
   .box{padding:16px}
   .bars{height:180px;gap:10px}
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+  .acts .mes{grid-column:1/-1;justify-content:space-between}
+  .acts .btn{width:100%}
+  .sets{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .setc{gap:10px;padding:14px}
+  .setc .v{font-size:18px}
+  .kpis .kpi.solar{grid-column:1/-1}
   .brow{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 16px}
   .brow.hd{display:none}
   .brow .bnome{grid-column:1}
   .brow .bval{grid-column:2;grid-row:1;align-self:start}
-  .brow .bven{grid-column:1}
-  .brow .bst{grid-column:2;grid-row:2;justify-self:end}
-  .brow .bact{grid-column:1/-1;justify-content:flex-end}
+  .brow .bven{grid-column:1;grid-row:2}
+  .brow .bst{grid-column:1;grid-row:3;justify-self:start;align-self:center;z-index:1}
+  .brow .bact{grid-column:1/-1;grid-row:3;justify-content:flex-end}
+  .compacto .brow .bact{grid-row:2}
+  .compacto .brow .bven{align-self:center}
   .frow{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:12px 16px}
   .frow .fnome{grid-column:1}
   .frow .fval{grid-column:2;grid-row:1;align-self:start}
@@ -379,7 +392,9 @@ input[type=date]{color-scheme:dark}
   .mrow .fact{grid-column:1/-1}
   .dnav .dl{min-width:0;flex:1 1 100%;order:-1;text-align:left}
   .fr{grid-template-columns:minmax(0,1.1fr) repeat(3,minmax(0,1fr));gap:4px;padding:10px 10px;font-size:11.5px}
-  .fr.hd .chip{height:32px;padding:0 6px;font-size:11px}
+  .fr.hd .chip{height:36px;padding:0 8px;font-size:12px}
+  .hm{display:none}
+  .fr{font-size:12.5px}
   .panel .ph2{flex-wrap:wrap;gap:10px 16px;padding:14px 16px}
   .panel .pb{padding:14px 16px}
   .rcards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -388,6 +403,7 @@ input[type=date]{color-scheme:dark}
   .md{top:auto;bottom:0;left:0;right:0;width:100%;transform:none;border-radius:20px 20px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom));animation:sobeModal .22s var(--ease) both}
   @keyframes sobeModal{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 }
+@media (max-width:760px){input,select,textarea,.copy input{font-size:16px}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
@@ -1508,7 +1524,7 @@ async function carregarEstoque() {
   } catch (e) { console.error(e); Store.set({ estoque:{ lista:[], erro:'Não foi possível carregar o estoque. ' + msgErro(e) } }); }
   finally { estBusca = false; }
 }
-const badgeTipo = tp => tp === 'venda' ? '<span class="badge">venda (antigo)</span>' : '<span class="badge err">Gasto</span>';
+const badgeTipo = tp => tp === 'venda' ? '<span class="badge">venda (antigo)</span>' : '';
 function sitEstoque(p) { const q = Number(p.qtd) || 0, m = Number(p.minimo) || 0; return q <= 0 ? 'zerado' : q < m ? 'baixo' : 'ok'; }
 const fmtQtd = n => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits:2 });
 
@@ -1541,7 +1557,7 @@ function setorHTML(s, set) {
         <div class="fact"><button class="ib q" data-act="estAjuste" data-id="${esc(x.id)}" data-d="-1" aria-label="Tirar 1 de ${esc(x.nome)}">−</button><button class="ib q" data-act="estAjuste" data-id="${esc(x.id)}" data-d="1" aria-label="Colocar 1 em ${esc(x.nome)}">+</button><button class="ib" data-act="prodEditar" data-id="${esc(x.id)}" aria-label="Editar ${esc(x.nome)}">${ico('edit')}</button></div></div>`;
     }).join('');
     return head + erro + `<div class="stack">${tabs}${cards}
-      <section class="panel" style="margin:0"><div class="ph2"><h3>Produtos</h3></div><div role="table">
+      <section class="panel" style="margin:0"><div class="ph2"><h3>Produtos</h3></div><div role="table" style="--act:150px">
         <div class="mrow hd" role="row"><span>Produto</span><span style="text-align:right">Qtd</span><span style="text-align:right">Mínimo</span><span style="text-align:right">Custo un.</span><span style="text-align:right">Valor</span><span style="text-align:right">Situação</span><span></span></div>
         ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum produto neste setor ainda. Use "+ Novo produto" para o primeiro.</div>`}</div></section></div>`;
   }
@@ -1561,8 +1577,8 @@ function setorHTML(s, set) {
   const porForn = set.forn ? Object.entries(ls.filter(x => x.tipo === 'custo').reduce((o, x) => { const n = x.fornecedorNome || 'Sem fornecedor'; o[n] = (o[n] || 0) + (Number(x.valor) || 0); return o; }, {})).sort((a, b) => b[1] - a[1]) : [];
   const fornPainel = set.forn ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Gasto por fornecedor em ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div>${porForn.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th style="text-align:right">Total</th></tr></thead><tbody>${porForn.map(([n, t]) => `<tr><td style="color:var(--t1)">${esc(n)}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${brl(t)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="pb muted" style="font-size:14px">Nenhum custo com fornecedor neste mês.</div>'}</section>` : '';
   return head + erro + `<div class="stack">${tabs}${todos ? metaCard(L.mes, v) : ''}${cards}${fornPainel}
-    <section class="panel" style="margin:0"><div class="ph2"><h3>Lançamentos de ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div><div role="table">
-      <div class="brow hd" role="row"><span>Lançamento</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span></span></div>
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Lançamentos de ${esc(mesNome(L.mes, true).toLowerCase())}</h3></div><div role="table" class="compacto" style="--act:100px">
+      <div class="brow hd" role="row"><span>Gasto</span><span>Data</span><span style="text-align:right">Valor</span><span></span><span></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum lançamento deste setor em ${esc(mesNome(L.mes, true).toLowerCase())}. Use "+ Novo lançamento".</div>`}</div></section></div>`;
 }
 const nBolL = n => n + (n === 1 ? ' lançamento' : ' lançamentos');
@@ -1836,7 +1852,7 @@ function energiaHTML(s) {
     ['Economia (R$)', r => `<span style="color:${ecoEn(r) >= 0 ? 'var(--ok)' : 'var(--err)'}">${brl(ecoEn(r))}</span>`, 'eco'], ['Economia (%)', r => pct(ecoPctEn(r)), 'eco'], ['Cobertura solar', r => pct(cobEn(r))]
   ].map(([l, fn, k]) => `<div class="fr ${k || ''}" role="row"><span class="fl">${l}</span>${['loja1', 'loja2', 'tot'].map(c => `<span class="fv">${col(fn, c)}</span>`).join('')}</div>`).join('');
   const fech = `<section class="panel" style="margin:0"><div class="ph2"><h3>Fechamento de ${esc(mesNome(mes, true).toLowerCase())}</h3></div>
-    <div class="fech" role="table"><div class="fr hd" role="row"><span></span>${LOJAS.map(l => `<span class="fv"><button class="chip" data-act="energiaLancar" data-l="${l.id}" data-m="${mes}">${rec(l.id) ? 'Editar' : 'Lançar'} ${l.nome}</button></span>`).join('')}<span class="fv">Total</span></div>${linhas}</div></section>`;
+    <div class="fech" role="table"><div class="fr hd" role="row"><span></span>${LOJAS.map(l => `<span class="fv"><button class="chip" data-act="energiaLancar" data-l="${l.id}" data-m="${mes}" aria-label="${rec(l.id) ? 'Editar' : 'Lançar'} ${l.nome}"><span class="hm">${rec(l.id) ? 'Editar' : 'Lançar'} </span>${l.nome}</button></span>`).join('')}<span class="fv">Total</span></div>${linhas}</div></section>`;
   // histórico
   const meses = Array.from(new Set(E.lista.map(x => x.mes))).sort().reverse();
   const hist = meses.map(m => {
@@ -1966,7 +1982,8 @@ function graficoLinha(eixo, series) {
   const ticks = [0, .25, .5, .75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(top * f).toFixed(1)}" y2="${y(top * f).toFixed(1)}" stroke="var(--line)"/><text x="${L - 6}" y="${(y(top * f) + 4).toFixed(1)}" text-anchor="end">${esc(brlCurto(top * f))}</text>`).join('');
   const cada = Math.max(1, Math.ceil(n / (estreito ? 5 : 8)));
   const rots = eixo.map((r, i) => (i % cada === 0 || (i === n - 1 && (n - 1) % cada >= cada / 2)) ? `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(mesmo ? rotMes(r) : r)}</text>` : '').join('');
-  const lin = series.map(s => `<polyline fill="none" stroke="${s.cor}" stroke-width="2" stroke-linejoin="round" points="${s.pontos.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ')}"/>` +
+  const caminho = pts => pts.map((v, i) => (i === 0 || (v === 0 && pts[i - 1] === 0) ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  const lin = series.map(s => `<path fill="none" stroke="${s.cor}" stroke-width="2" stroke-linejoin="round" d="${caminho(s.pontos)}"/>` +
     s.pontos.map((v, i) => v > 0 ? `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${s.cor}" data-tip="${esc(s.nome)} · ${esc(mesmo ? mesNome(eixo[i], false) : 'dia ' + eixo[i])} · ${brl(v)}"><title>${esc(s.nome)}: ${brl(v)}</title></circle>` : '').join('')).join('');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gastos ${mesmo ? 'por mês' : 'por dia'} de cada item">${ticks}${rots}${lin}</svg>`;
 }
@@ -1977,9 +1994,9 @@ function analiseHTML(ag, o) {
   const nota = o.angulo === 'fornecedor' && ag.excluido > 0 ? `<p class="muted" style="font-size:13px;padding:0 20px">${brl(ag.excluido)} em gastos sem fornecedor não entram nesta visão.</p>` : '';
   if (!ag.itens.length) return `<section class="panel analise" style="margin:0">${head}${nota}<div class="pb muted" style="font-size:14px">Nenhum gasto ${o.angulo === 'fornecedor' ? 'com fornecedor ' : ''}em ${esc(mesNome(o.mes, true).toLowerCase())}.</div></section>`;
   const leg = ag.itens.map(x => `<div><i style="background:${x.cor}"></i><span title="${esc(x.nome)}">${esc(x.nome)}</span><b>${pct(x.pct)}</b></div>`).join('');
-  const vs = x => x.deltaPct === null ? (x.total > 0 ? '<span class="up">novo</span>' : '—') : x.delta === 0 ? '0%' : `<span class="${x.delta > 0 ? 'up' : 'dn'}">${x.delta > 0 ? '▲ +' : '▼ −'}${brl(Math.abs(x.delta))} (${x.delta > 0 ? '+' : '−'}${pct(Math.abs(x.deltaPct))})</span>`;
+  const vs = x => x.deltaPct === null ? (x.total > 0 ? '<span class="up">novo</span>' : '—') : x.delta === 0 ? '0%' : `<span class="${x.delta > 0 ? 'up' : 'dn'}">${x.delta > 0 ? '▲' : '▼'} <span class="hm">${x.delta > 0 ? '+' : '−'}${brl(Math.abs(x.delta))} (</span>${x.delta > 0 ? '+' : '−'}${pct(Math.abs(x.deltaPct))}<span class="hm">)</span></span>`;
   const tr = x => `<tr><td style="color:var(--t1)"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${x.cor};margin-right:8px"></span>${esc(x.nome)}</td><td style="text-align:right">${brl(x.total)}</td><td style="text-align:right">${pct(x.pct)}</td><td style="text-align:right">${vs(x)}</td><td style="text-align:right">${x.n}</td><td style="text-align:right">${x.maior ? brl(x.maior.valor) + ' <span class="muted">(' + dataBR(x.maior.data).slice(0, 5) + ')</span>' : '—'}</td><td style="text-align:right">${x.n ? brl(x.media) : '—'}</td></tr>`;
-  const tabela = `<div class="scroll-x"><table style="font-variant-numeric:tabular-nums"><thead><tr><th>Item</th><th style="text-align:right">Gasto no mês</th><th style="text-align:right">%</th><th style="text-align:right">vs. mês anterior</th><th style="text-align:right">Lançamentos</th><th style="text-align:right">Maior gasto</th><th style="text-align:right">Média</th></tr></thead><tbody>${ag.itens.map(tr).join('')}<tr><td style="color:var(--t1)"><b>Total</b></td><td style="text-align:right"><b>${brl(ag.total)}</b></td><td style="text-align:right">100%</td><td></td><td style="text-align:right">${ag.itens.reduce((s, x) => s + x.n, 0)}</td><td></td><td></td></tr></tbody></table></div>`;
+  const tabela = `<div class="scroll-x"><table class="atab" style="font-variant-numeric:tabular-nums"><thead><tr><th>Item</th><th style="text-align:right">Gasto no mês</th><th style="text-align:right">%</th><th style="text-align:right">vs. mês anterior</th><th style="text-align:right">Lançamentos</th><th style="text-align:right">Maior gasto</th><th style="text-align:right">Média</th></tr></thead><tbody>${ag.itens.map(tr).join('')}<tr><td style="color:var(--t1)"><b>Total</b></td><td style="text-align:right"><b>${brl(ag.total)}</b></td><td style="text-align:right">100%</td><td></td><td style="text-align:right">${ag.itens.reduce((s, x) => s + x.n, 0)}</td><td></td><td></td></tr></tbody></table></div>`;
   return `<section class="panel analise" style="margin:0">${head}${nota}
     <div class="gr"><div class="pz">${graficoPizza(ag.itens, ag.total)}<div class="lg">${leg}</div></div>
     <div class="ln"><div class="muted" style="font-size:12px;margin-bottom:4px">${o.modo === 'mes' ? 'R$ por mês · últimos 12 meses' : 'R$ por dia · ' + esc(mesNome(o.mes, true).toLowerCase())}</div>${graficoLinha(ag.eixo, ag.series)}<p class="tipline noprint" aria-live="polite">Toque num ponto ou fatia para ver o valor.</p></div></div>
@@ -2035,7 +2052,7 @@ function relatoriosHTML(s) {
   let corpo = '';
   const angs = esc_ === 'geral' ? ['categoria', 'subsetor', 'fornecedor'] : ['categoria', 'fornecedor'], ang = angs.includes(R.ang) ? R.ang : 'categoria';
   corpo += analiseHTML(agregarGastos(esc_ === 'geral' ? R.dados.hist : R.dados.hist.filter(l => l.setor === esc_), ang, mes, R.modo), { angulos:angs, angulo:ang, modo:R.modo, mes, acaoAngulo:'relAng', acaoModo:'relModo' });
-  if (esc_ === 'geral') corpo += painel('Gastos por subsetor', tb(['Subsetor', 'Gasto no mês', '% dos gastos', 'Mês anterior', 'Variação', 'Lançamentos'], x.setores.map(r => tr([esc(r.nome), brl(r.c), x.custos > 0 ? pct(r.c / x.custos) : '—', brl(r.ca), r.ca > 0 ? `<span style="color:${r.c > r.ca ? 'var(--errt)' : 'var(--ok)'}">${r.c >= r.ca ? '+' : '−'}${pct(Math.abs(r.c - r.ca) / r.ca)}</span>` : (r.c > 0 ? 'novo' : '—'), r.n])).concat([tr(['<b>Total</b>', `<b>${brl(x.custos)}</b>`, '100%', `<b>${brl(x.custosAnt)}</b>`, '', `<b>${x.lanc.length}</b>`])]), ''));
+  if (esc_ === 'geral') corpo += painel('Gastos por subsetor', '<div class="gsub">' + tb(['Subsetor', 'Gasto no mês', '% dos gastos', 'Mês anterior', 'Variação', 'Lançamentos'], x.setores.map(r => tr([esc(r.nome), brl(r.c), x.custos > 0 ? pct(r.c / x.custos) : '—', brl(r.ca), r.ca > 0 ? `<span style="color:${r.c > r.ca ? 'var(--errt)' : 'var(--ok)'}">${r.c >= r.ca ? '+' : '−'}${pct(Math.abs(r.c - r.ca) / r.ca)}</span>` : (r.c > 0 ? 'novo' : '—'), r.n])).concat([tr(['<b>Total</b>', `<b>${brl(x.custos)}</b>`, '100%', `<b>${brl(x.custosAnt)}</b>`, '', `<b>${x.lanc.length}</b>`])]), '') + '</div>');
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
   corpo += painel('Juros pagos no mês', tb(['Origem', 'Qtd', 'Juros'], [tr(['Custos lançados', x.juros.nl, brl(x.juros.l)]), tr(['Boletos pagos no mês', x.juros.nb, brl(x.juros.b)]), tr(['Contas agendadas pagas no mês', x.juros.nc, brl(x.juros.c)]), tr(['<b>Total de juros</b>', `<b>${x.juros.nl + x.juros.nb + x.juros.nc}</b>`, `<b style="color:${x.juros.total > 0 ? 'var(--warn)' : 'var(--t1)'}">${brl(x.juros.total)}</b>`])], '')) + '\n  ';
   corpo += `<div class="duo">${painel('Boletos do mês', tb(['Situação', 'Qtd', 'Valor'], [tr(['Pagos', x.pagos.length, brl(somaB(x.pagos))]), tr(['A vencer', x.avc.length, brl(somaB(x.avc))]), tr(['<span style="color:var(--err)">Vencidos sem pagar</span>', x.venc.length, `<span style="color:var(--err)">${brl(somaB(x.venc))}</span>`]), tr(['<b>Total (' + bTxt + ')</b>', `<b>${x.bol.length}</b>`, `<b>${brl(somaB(x.bol))}</b>`])], ''))}
@@ -2111,9 +2128,9 @@ function pessoalHTML(s) {
   const ls = P.lista.filter(x => P.filtro === 'todos' || x.tipo === P.filtro).sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   const rows = ls.map(x => `<div class="brow" role="row">
       <div class="bnome"><b title="${esc(x.descricao || x.categoria)}">${esc(x.descricao || x.categoria || 'Sem descrição')}</b><span>${esc(x.categoria || '')}${Number(x.juros) > 0 ? ' · juros ' + esc(brl(x.juros)) : ''}</span></div>
-      <div class="bven">${dataBR(x.data)}</div><div class="bval" style="color:${x.tipo === 'entrada' ? 'var(--ok)' : 'var(--t1)'}">${x.tipo === 'entrada' ? '+' : '−'}${brl(x.valor)}</div><div class="bst"><span class="badge ${x.tipo === 'entrada' ? 'ok' : 'err'}">${x.tipo === 'entrada' ? 'Entrada' : 'Gasto'}</span></div>
+      <div class="bven">${dataBR(x.data)}</div><div class="bval" style="color:${x.tipo === 'entrada' ? 'var(--ok)' : 'var(--t1)'}">${x.tipo === 'entrada' ? '+' : '−'}${brl(x.valor)}</div><div class="bst"><span class="badge ${x.tipo === 'entrada' ? 'ok' : ''}">${x.tipo === 'entrada' ? 'Entrada' : 'Gasto'}</span></div>
       <div class="bact noprint"><button class="ib" data-act="pesEditar" data-id="${esc(x.id)}" aria-label="Editar">${ico('edit')}</button></div></div>`).join('');
-  const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table">
+  const lista = `<section class="panel" style="margin:0"><div class="ph2"><h3>Movimentos de ${esc(mesNome(mes, true).toLowerCase())}</h3></div><div role="table" class="compacto" style="--act:52px">
       <div class="brow hd" role="row"><span>Descrição</span><span>Data</span><span style="text-align:right">Valor</span><span>Tipo</span><span class="noprint"></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nada lançado em ${esc(mesNome(mes, true).toLowerCase())}. Use "+ Novo gasto" ou "+ Nova entrada".</div>`}</div></section>`;
   const topo = `<div class="printonly"><div class="pt"><b class="pb1">356 Gestão · Pessoal</b><span>Extrato de ${esc(mesNome(mes, true))}</span></div><small>Gerado em ${dataBRfull(hojeStr())} por ${esc(s.user.email)}</small></div>`;
@@ -2324,7 +2341,7 @@ function painelHTML(s, nomeCurto) {
       <div class="ctx">${esc(mesLabel)} · todos os setores</div>
       <h1>Painel geral</h1>
     </div>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="acts">
     <div class="mes" role="group" aria-label="Mês">
       <button data-act="mes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button>
       <span aria-live="polite">${esc(mesCurto)}</span>
@@ -2346,8 +2363,8 @@ function painelHTML(s, nomeCurto) {
   const kpis = [
     kpi('', 'Vendas', brl(a.vendas), delta(a.vendas, b.vendas), a.vendas > 0 ? (b.vendas > 0 ? 'vs. mês anterior (' + brl(b.vendas) + ')' : 'total da loja no mês') : 'registre em "Venda do mês"'),
     kpi('', 'Gastos', brl(a.custos), delta(a.custos, b.custos), a.n === 0 ? 'Sem gastos lançados neste mês' : 'gastos lançados no mês'),
-    kpi('hero', 'Lucro', brl(lucro), lucroAnt > 0 && lucro > 0 ? delta(lucro, lucroAnt) : '', margem ? 'margem de ' + margem : 'aparece com vendas lançadas'),
-    kpi('', 'Economia solar', brl(en ? eco : 0), en ? `<span class="dl up">${pct(ecoPct)}</span>` : '', en ? (Number(en.injetado) || 0).toLocaleString('pt-BR') + ' kWh injetados' : 'Sem dados de energia neste mês')
+    kpi('hero', 'Lucro', brl(lucro), lucroAnt > 0 && lucro > 0 ? delta(lucro, lucroAnt) : '', margem ? 'margem de ' + margem : 'registre a venda do mês'),
+    kpi('solar', 'Economia solar', brl(en ? eco : 0), en ? `<span class="dl up">${pct(ecoPct)}</span>` : '', en ? (Number(en.injetado) || 0).toLocaleString('pt-BR') + ' kWh injetados' : 'Sem dados de energia neste mês')
   ].join('');
 
   const setCards = SETORES.map(x => {
@@ -2364,8 +2381,8 @@ function painelHTML(s, nomeCurto) {
   const m = 'custos', serie = a.sem[m], max = Math.max(...serie, 1);
   const tem = serie.some(v => v > 0);
   const grafico = tem
-    ? `<div class="bars" role="img" aria-label="${m === 'vendas' ? 'Vendas' : 'Custos'} por semana: ${serie.map(brlMil).join('; ')}">${serie.map((v, i) =>
-        `<div class="c"><div class="n">${v > 0 ? brlMil(v) : '—'}</div><div class="b" style="height:${Math.max(4, Math.round(v / max * 78))}%"></div><div class="s">${i === 3 ? 'Sem 4+' : 'Sem ' + (i + 1)}</div></div>`).join('')}</div>`
+    ? `<div class="bars" role="img" aria-label="Gastos por semana: ${serie.map(brlMil).join('; ')}">${serie.map((v, i) =>
+        `<div class="c"><div class="n">${v > 0 ? brlMil(v) : '—'}</div><div class="b${v > 0 ? '' : ' z'}" style="height:${Math.max(4, Math.round(v / max * 78))}%"></div><div class="s">${i === 3 ? 'Sem 4+' : 'Sem ' + (i + 1)}</div></div>`).join('')}</div>`
     : `<div class="vazio-mini"><p>Nenhum ${m === 'vendas' ? 'lançamento de venda' : 'custo lançado'} em ${esc(mesLabel.toLowerCase())}. As barras aparecem quando houver lançamentos.</p></div>`;
 
   const futuro = (titulo, texto) => `<div class="box vazio-mini"><div class="bh" style="margin:0"><h2>${titulo}</h2><span class="badge">Em breve</span></div><p>${texto}</p></div>`;
