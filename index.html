@@ -278,6 +278,8 @@ tbody tr:hover{background:var(--w1)}
 .ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--navoff);cursor:pointer;display:grid;place-items:center;position:relative;transition:background-color .2s var(--ease)}
 .ib:hover{background:var(--w2)}
 .ib.tem::after{content:"";position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.f input[type=file]{padding:8px 10px;line-height:1.4;color:var(--t2);cursor:pointer}
+.f input[type=file]::file-selector-button{font:inherit;font-weight:510;color:var(--t1);background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-right:10px;cursor:pointer}
 .btn.pg{background:#8b3dff;border-color:transparent;color:#fff;font-weight:590;height:44px}
 .btn.bad{background:rgba(255,92,122,.1);border-color:rgba(255,92,122,.3);color:var(--errt)}
 .rc.est{cursor:default}.rc.est:hover{transform:none}
@@ -1646,6 +1648,8 @@ function formLanc(l, setorPadrao, tipoPadrao) {
     ${!l && ehDonoPes() ? `<label class="f hide" data-catpes><span>Categoria pessoal</span><select name="categoriaPes">${opcoesCat('gasto', '')}</select></label>
     <label class="f hide" data-novacatpes><span>Nome da nova categoria</span><input name="novaCategoriaPes" maxlength="40" placeholder="Ex.: Pet" autocomplete="off"></label>` : ''}
     ${jurosCampo(l && l.juros, tipo === 'custo' ? '' : 'hide')}
+    ${!l ? `<label class="f" data-anxemp><span>Foto da nota (opcional)</span><input type="file" name="fotoNota" accept="image/*"></label>` : ''}
+    ${!l && ehDonoPes() ? `<label class="f hide" data-anxpes><span>Fotos ou PDF (opcional, até ${MAX_ANX})</span><input type="file" name="anexosPes" accept="image/*,application/pdf" multiple></label>` : ''}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${l ? esc(l.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Fechamento do caixa, NF 4821" autocomplete="off"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${l ? 'Salvar alterações' : 'Salvar lançamento'}</button>
     ${l && admin ? `<button type="button" class="btn bad full" data-act="lancApagar" data-id="${esc(l.id)}">Apagar lançamento</button>` : ''}</div></form>`;
@@ -1671,13 +1675,19 @@ async function salvarLanc(f, d) {
   }
   btn.disabled = true;
   try {
+    const fi = !f.dataset.id && f.querySelector('input[name=fotoNota]'), foto = fi ? (await prepArquivos(fi.files, 1, true))[0] : null;
     let forn = null;
     if (d.categoria === '__nova') await criarCatEmp(catNome);
     if (precisaForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
     const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:catNome, descricao:(d.descricao || '').trim(), juros:JJ.j, fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
     const L = Store.s.lanc; let ref = id ? colLanc().doc(id) : colLanc().doc(), novo = null;
     if (id) await ref.update(mud);
-    else { novo = { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(novo); }
+    else {
+      novo = { ...mud, temComprovante:!!foto, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+      const b = db.batch(); b.set(ref, novo);
+      if (foto) b.set(db.doc(`empresas/${EMPRESA}/comprovantes/l_${ref.id}`), { dataUrl:foto.dataUrl, em:TS(), por:Store.s.user.uid });
+      await b.commit();
+    }
     const mes = data.slice(0, 7); let lista = L.lista || [];
     lista = id ? lista.filter(x => x.id !== id) : lista;
     if (mes === L.mes) lista = lista.concat([{ ...(id ? (L.lista.find(x => x.id === id) || {}) : novo), ...mud, id:ref.id, criadoEm:null }]);
@@ -2202,6 +2212,7 @@ function formPes(m, tipoPadrao) {
     <label class="f hide" data-novacat><span>Nome da nova categoria</span><input name="novaCategoria" maxlength="40" placeholder="Ex.: Pet" autocomplete="off"></label>
     ${jurosCampo(m && m.juros, tipo === 'gasto' ? '' : 'hide')}
     <label class="f"><span>Descrição (opcional)</span><input name="descricao" value="${m ? esc(m.descricao || '') : ''}" maxlength="120" placeholder="Ex.: Feira da semana, aluguel apto 12" autocomplete="off"></label>
+    ${!m ? `<label class="f"><span>Fotos ou PDF (opcional, até ${MAX_ANX})</span><input type="file" name="anexosPes" accept="image/*,application/pdf" multiple></label>` : ''}
     <div class="acoes"><button class="btn pri full" type="submit">${m ? 'Salvar alterações' : 'Salvar'}</button>
     ${m ? `<button type="button" class="btn full" data-act="pesAnexos" data-id="${esc(m.id)}">${m.nAnexos > 0 ? 'Anexos (' + m.nAnexos + ')' : 'Anexar foto ou arquivo'}</button><button type="button" class="btn bad full" data-act="pesApagar" data-id="${esc(m.id)}">Apagar</button>` : ''}</div></form>`;
 }
@@ -2218,18 +2229,40 @@ async function salvarPes(f, d) {
   if (catNome === '__nova') { const r = validarNovaCat(d.novaCategoria, catsDe(Store.s.pes, d.tipo).map(c => c.nome)); if (r.erro) return erro(r.erro); catNome = r.nome; }
   btn.disabled = true;
   try {
+    const inp = !f.dataset.id && f.querySelector('input[name=anexosPes]'), anx = inp ? await prepArquivos(inp.files, MAX_ANX, false) : [];
     if (d.categoria === '__nova') {
       const P0 = Store.s.pes, cs = P0.cats || [], ordem = Math.max(0, ...cs.map(c => c.ordem || 0)) + 1, cref = colPesCat().doc();
       await cref.set({ nome:catNome, tipo:d.tipo, ordem, criadoPorUid:Store.s.user.uid });
       Store.set({ pes:{ ...P0, cats:cs.concat([{ id:cref.id, nome:catNome, tipo:d.tipo, ordem }]) } });
     }
     const id = f.dataset.id, mud = { tipo:d.tipo, valor, data, categoria:catNome, descricao:(d.descricao || '').trim(), juros:JJ.j };
+    if (anx.length) mud.nAnexos = anx.length;
     const P = Store.s.pes; const ref = id ? colPes().doc(id) : colPes().doc();
-    if (id) await ref.update(mud); else await ref.set({ ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+    if (id) await ref.update(mud);
+    else {
+      const b = db.batch(); b.set(ref, { ...mud, criadoPorUid:Store.s.user.uid, criadoEm:TS() });
+      anx.forEach((a, k) => b.set(colPesAnx().doc(), { ...a, movId:ref.id, ord:Date.now() + k, em:TS(), por:Store.s.user.uid }));
+      await b.commit();
+    }
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
     if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
     fecharModal(); Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+async function prepArquivos(files, max, soImg) {
+  files = Array.from(files || []);
+  if (files.length > max) throw new Error(max === 1 ? 'Escolha só uma foto da nota.' : `Escolha no máximo ${max} arquivos.`);
+  const out = [];
+  for (const file of files) {
+    const ehPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (ehPdf && !soImg) {
+      const dataUrl = await lerDataUrl(file);
+      if (dataUrl.length > MAX_ANX_CHARS) throw new Error(`O PDF "${file.name}" é grande demais (máximo 650 KB). Tente um arquivo menor ou tire uma foto.`);
+      out.push({ nome:(file.name || 'arquivo.pdf').slice(0, 80), tipo:'pdf', dataUrl });
+    } else if (/^image\//.test(file.type)) out.push({ nome:(file.name || 'foto.jpg').slice(0, 80), tipo:'img', dataUrl:await comprimir(file) });
+    else throw new Error(soImg ? 'A nota precisa ser uma foto (JPG ou PNG).' : 'Use fotos (JPG ou PNG) ou PDF.');
+  }
+  return out;
 }
 // pessoal/356/anexos/{id}: movId, nome, tipo ('img'|'pdf'), dataUrl, ord, em, por (no banco, sem Storage; até 5 por lançamento)
 const colPesAnx = () => db.collection(`pessoal/${EMPRESA}/anexos`);
@@ -3021,7 +3054,7 @@ document.addEventListener('change', e => {
 document.addEventListener('change', e => {
   const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
-  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } }
+  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } const ae = f.querySelector('[data-anxemp]'), ap = f.querySelector('[data-anxpes]'); if (ae && ap) { ae.classList.toggle('hide', t.value === '__pes'); ap.classList.toggle('hide', t.value !== '__pes'); } }
   if (t.name === 'categoria') { const n = f.querySelector('[data-novacat]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
   if (t.name === 'categoriaPes') { const n = f.querySelector('[data-novacatpes]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
