@@ -440,6 +440,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const $ = (s, r = document) => r.querySelector(s);
 const ehAdminFixo = u => !!u && !!u.email && ADMINS.includes(u.email.toLowerCase());
 const ehDonoPes = () => ehAdminFixo(Store.s.user);
+const optArq = atual => atual && ARQ.has(atual) ? `<option value="${esc(atual)}" selected>${esc(nomeSetor(atual))}</option>` : '';
+const subValido = (id, comGeral) => (comGeral && id === 'geral') || SETORES_TODOS.some(x => x.id === id) || SETORES.some(x => x.id === id);
 function novoId() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const r = new Uint32Array(20); crypto.getRandomValues(r);
@@ -1065,7 +1067,7 @@ function formConta(c) {
   return `<form data-form="conta" data-id="${c ? esc(c.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f ${c && c.setor === ID_FORN ? 'hide' : ''}" data-desc><span>Que conta é</span><input name="descricao" value="${c ? esc(c.descricao) : ''}" maxlength="120" placeholder="Ex.: Conta de luz, Sky, aluguel da garagem" autocomplete="off"></label>
-    ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>${fornCampo(c ? c.setor : 'geral', c && c.fornecedorId)}`}
+    ${ehPes() ? '' : `<label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${(c ? c.setor : 'geral') === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(c && c.setor)}</select></label>${fornCampo(c ? c.setor : 'geral', c && c.fornecedorId)}`}
     <label class="f"><span>Quando se repete</span><select name="tipo"><option value="rec" ${rec ? 'selected' : ''}>Todo mês, no mesmo dia</option><option value="uma" ${rec ? '' : 'selected'}>Só uma vez</option></select></label>
     <div data-so="rec" ${rec ? '' : 'class="hide"'}>
       <label class="f"><span>Dia do vencimento (1 a 31)</span><input name="dia" type="number" min="1" max="31" inputmode="numeric" value="${c && c.dia ? esc(c.dia) : ''}" placeholder="Ex.: 10"></label>
@@ -1085,7 +1087,7 @@ async function salvarConta(f, d) {
   let desc = (d.descricao || '').trim(); const valor = parseValor(d.valor), rec = d.tipo !== 'uma';
   if (!desc && (ehPes() || d.setor !== ID_FORN)) return erro('Escreva que conta é.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 289,90');
-  if (!ehPes() && !setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!ehPes() && !subValido(d.setor, true)) return erro('Escolha o subsetor.');
   const ef = ehPes() ? '' : fornValida(d); if (ef) return erro(ef);
   const base = { descricao:desc, setor:ehPes() ? 'pessoal' : d.setor, valor, recorrente:rec };
   if (rec) {
@@ -1208,7 +1210,7 @@ function formBoleto(b) {
   return `<form data-form="boleto" data-id="${b ? esc(b.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f ${b && b.setor === ID_FORN ? 'hide' : ''}" data-desc><span>O que é</span><input name="descricao" value="${b ? esc(b.descricao) : ''}" maxlength="120" placeholder="Ex.: Distribuidora de bebidas · NF 48211" autocomplete="off"></label>
-    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${b && b.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(b && b.setor)}</select></label>
     ${fornCampo(b ? b.setor : setoresB()[0].id, b && b.fornecedorId)}
     <label class="f"><span>Vencimento</span><input name="vencimento" type="date" value="${b ? esc(b.vencimento) : hojeStr()}"></label>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="1.234,56" autocomplete="off"></label>
@@ -1223,7 +1225,7 @@ async function salvarBoleto(f, d) {
   if (!desc && d.setor !== ID_FORN) return erro('Escreva o que é o boleto.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) return erro('Escolha a data de vencimento.');
-  if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!subValido(d.setor, true)) return erro('Escolha o subsetor.');
   const ef = fornValida(d); if (ef) return erro(ef);
   const JJ = lerJuros(d, valor); if (JJ.erro) return erro(JJ.erro);
   btn.disabled = true;
@@ -1397,7 +1399,7 @@ function formFree(f) {
     <div class="alert" role="alert"></div>
     <label class="f"><span>Nome</span><input name="nome" value="${f ? esc(f.nome) : ''}" maxlength="80" placeholder="Ex.: Carlos Henrique" autocomplete="off"></label>
     <label class="f"><span>Função</span><input name="funcao" value="${f ? esc(f.funcao || '') : ''}" maxlength="60" placeholder="Ex.: Garçom, Churrasqueiro" autocomplete="off"></label>
-    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${f && f.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${setoresB().map(x => `<option value="${x.id}" ${f && f.setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(f && f.setor)}</select></label>
     <label class="f"><span>Valor combinado por dia (R$)</span><input name="valor" inputmode="decimal" value="${esc(v)}" placeholder="150,00" autocomplete="off"></label>
     ${f ? `<label class="f"><span>Situação</span><select name="ativo"><option value="1" ${f.ativo !== false ? 'selected' : ''}>Ativo (aparece na lista de presença)</option><option value="0" ${f.ativo === false ? 'selected' : ''}>Inativo (some da lista, mantém o histórico)</option></select></label>` : ''}
     <div class="acoes"><button class="btn pri full" type="submit">${f ? 'Salvar alterações' : 'Salvar freelancer'}</button></div></form>`;
@@ -1408,7 +1410,7 @@ async function salvarFree(f, d) {
   const nome = (d.nome || '').trim(), valor = parseValor(d.valor);
   if (!nome) return erro('Escreva o nome do freelancer.');
   if (!(valor > 0)) return erro('Digite o valor combinado por dia, maior que zero. Exemplo: 150,00');
-  if (!setoresB().some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!subValido(d.setor, true)) return erro('Escolha o subsetor.');
   btn.disabled = true;
   try {
     const F = Store.s.free, id = f.dataset.id;
@@ -1482,7 +1484,7 @@ const CAT_VENDA = ['Balcão', 'Delivery', 'Evento', 'Online', 'Outras vendas'];
 const CAT_CUSTO = ['Mercadoria', 'Freelancers e folha', 'Aluguel', 'Energia', 'Impostos e taxas', 'Manutenção', 'Marketing', 'Outros custos'];
 const UNIDADES = ['un', 'kg', 'L', 'cx', 'pct'];
 const nomeSetor4 = id => nomeSetor(id);
-function invalidarPainel() { Store.s.painel = { ...Store.s.painel, dados:null, chave:null }; }
+function invalidarPainel() { Store.s.painel = { ...Store.s.painel, dados:null, chave:null }; Store.s.rel = { ...Store.s.rel, dados:null, chave:null }; }
 let lancBusca = null;
 async function carregarLanc() {
   const L = Store.s.lanc, mes = L.mes;
@@ -1574,7 +1576,7 @@ function formLanc(l, setorPadrao, tipoPadrao) {
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
-    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${!l && ehDonoPes() ? '<option value="__pes">Pessoal (só Luiz e Eliana)</option>' : ''}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(setor)}${!l && ehDonoPes() ? '<option value="__pes">Pessoal (só Luiz e Eliana)</option>' : ''}</select></label>
     <div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
       <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${optsForn}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
       <label class="f ${semForn ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
@@ -1594,7 +1596,7 @@ async function salvarLanc(f, d) {
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const valor = parseValor(d.valor), data = d.data || '';
   if (d.tipo !== 'custo' && !(d.tipo === 'venda' && f.dataset.id)) return erro('Tipo inválido.');
-  if (!SETORES.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!subValido(d.setor, false)) return erro('Escolha o subsetor.');
   if (!(valor > 0)) return erro('Digite um valor maior que zero. Exemplo: 1.234,56');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
   if (data > hojeStr()) return erro('A data não pode ser no futuro.');
@@ -1634,7 +1636,7 @@ function formProd(x, setorPadrao) {
   return `<form data-form="produto" data-id="${x ? esc(x.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Produto</span><input name="nome" value="${x ? esc(x.nome) : ''}" maxlength="80" placeholder="Ex.: Saquê Junmai 720 ml" autocomplete="off"></label>
-    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}${optArq(setor)}</select></label>
     <label class="f"><span>Categoria (opcional)</span><input name="categoria" value="${x ? esc(x.categoria || '') : ''}" maxlength="40" placeholder="Ex.: Destilados" autocomplete="off"></label>
     <label class="f"><span>Unidade</span><select name="unidade">${UNIDADES.map(u => `<option ${x && x.unidade === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
     <label class="f"><span>Quantidade em estoque</span><input name="qtd" inputmode="decimal" value="${x ? esc(String(x.qtd).replace('.', ',')) : '0'}" autocomplete="off"></label>
@@ -1649,7 +1651,7 @@ async function salvarProd(f, d) {
   const nome = (d.nome || '').trim(), vazioZero = s => (String(s || '').trim() === '' ? 0 : parseValor(s));
   const qtd = vazioZero(d.qtd), minimo = vazioZero(d.minimo), custoUn = vazioZero(d.custoUn);
   if (!nome) return erro('Escreva o nome do produto.');
-  if (!SETORES.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!subValido(d.setor, false)) return erro('Escolha o subsetor.');
   if (!(qtd >= 0)) return erro('Quantidade inválida. Use números, por exemplo 12 ou 2,5.');
   if (!(minimo >= 0)) return erro('Estoque mínimo inválido. Use números, por exemplo 5.');
   if (!(custoUn >= 0)) return erro('Custo inválido. Exemplo: 12,90');
@@ -1756,7 +1758,7 @@ function formTar(x, setorPadrao) {
   return `<form data-form="tarefa" data-id="${x ? esc(x.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <label class="f"><span>Tarefa</span><input name="titulo" value="${x ? esc(x.titulo) : ''}" maxlength="120" placeholder="Ex.: Conferir validade dos importados" autocomplete="off"></label>
-    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(s => `<option value="${s.id}" ${setor === s.id ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}${optArq(setor)}</select></label>
     <label class="f"><span>Responsável (opcional)</span><input name="responsavel" value="${x ? esc(x.responsavel || '') : ''}" maxlength="60" placeholder="Ex.: Lucas" autocomplete="off"></label>
     <label class="f"><span>Prazo (opcional)</span><input name="prazo" type="date" value="${x ? esc(x.prazo || '') : ''}"></label>
     <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar tarefa'}</button>
@@ -1767,7 +1769,7 @@ async function salvarTar(f, d) {
   const erro = m => { av.className = 'alert err on'; av.textContent = m; };
   const titulo = (d.titulo || '').trim(), prazo = d.prazo || '';
   if (!titulo) return erro('Escreva o que precisa ser feito.');
-  if (!SETORES.some(x => x.id === d.setor)) return erro('Escolha o setor.');
+  if (!subValido(d.setor, false)) return erro('Escolha o subsetor.');
   if (prazo && !/^\d{4}-\d{2}-\d{2}$/.test(prazo)) return erro('Prazo inválido. Escolha a data de novo ou deixe em branco.');
   btn.disabled = true;
   try {
