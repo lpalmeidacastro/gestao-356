@@ -144,6 +144,15 @@ input::placeholder{color:var(--t4)}
 .offline{background:rgba(255,181,71,.1);border-bottom:1px solid rgba(255,181,71,.3);color:var(--warn);font-size:13px;padding:8px 40px}
 .wrap{max-width:1240px;padding:32px 40px 48px}
 .mhead,.tabbar{display:none}
+.srch{display:flex;align-items:center;gap:12px;width:100%;min-height:40px;padding:0 12px;margin:0 0 12px;border-radius:10px;border:1px solid var(--line);background:var(--w2);color:var(--t2);font:inherit;font-size:14px;font-weight:510;cursor:pointer;text-align:left}
+.srch:hover{color:var(--t1)}.srch span{flex:1}.srch kbd{font:inherit;font-size:11px;color:var(--t3);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.mh2{display:flex;align-items:center;gap:8px}.mh2 .sbtn{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:var(--w2);color:var(--t1);cursor:pointer}
+.busca h3{font-size:12px;font-weight:590;color:var(--t3);margin:16px 0 4px;letter-spacing:.02em}
+.busca .bi{display:flex;width:100%;justify-content:space-between;gap:12px;align-items:center;text-align:left;padding:10px 8px;min-height:44px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--t1);font:inherit;cursor:pointer}
+.busca .bi:hover,.busca .bi:focus-visible{background:var(--w2)}
+.busca .bi b{display:block;font-weight:510;font-size:14px;overflow-wrap:anywhere}
+.busca .bi small{display:block;color:var(--t3);font-size:12px;margin-top:2px;overflow-wrap:anywhere}
+.busca .bi .bv{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:14px}
 
 /* cabeçalho de página */
 .ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:32px}
@@ -497,7 +506,8 @@ const ICON = {
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
-  grafico:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'
+  grafico:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  busca:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'
 };
 const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
 const logo = (cls = '') => `<img class="logo-img lg-esc ${cls}" src="logo-356.png" alt="356 Gestão" width="640" height="411"><img class="logo-img lg-cla ${cls}" src="logo-356-claro.png" alt="" aria-hidden="true" width="640" height="411">`;
@@ -898,15 +908,51 @@ function subsModalHTML() {
       <label class="f"><span>Novo subsetor</span><input name="nome" maxlength="40" placeholder="Ex.: Manutenção, Marketing" autocomplete="off"></label>
       <div class="acoes"><button class="btn pri full" type="submit">Adicionar subsetor</button></div></form>`;
 }
+/* tipos de produto do fornecedor: lista de nomes no próprio fornecedor (tipos:[..]); a lista de tipos é a união dos que existem */
+const tiposDe = x => Array.isArray(x && x.tipos) ? x.tipos : [];
+const tiposForn = () => [...new Set((Store.s.forn.lista || []).flatMap(tiposDe))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+let fornFiltroTipo = '';
+function tiposCampo(sel) {
+  const todos = [...new Set(tiposForn().concat(sel || []))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return `<fieldset class="f" style="border:0;padding:0;margin:0 0 12px"><legend style="font-size:13px;font-weight:510;margin-bottom:6px">Tipo de produto <span class="muted" style="font-weight:400">· opcional, pode marcar vários</span></legend>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 14px">${todos.map(t => `<label style="display:flex;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="tipoCk" value="${esc(t)}" ${(sel || []).includes(t) ? 'checked' : ''}>${esc(t)}</label>`).join('') || '<span class="muted" style="font-size:13px">Nenhum tipo criado ainda.</span>'}</div>
+    <label class="f" style="margin-top:8px"><span>Novo tipo</span><input name="novoTipo" maxlength="80" placeholder="Ex.: Bebidas, Embalagens" autocomplete="off"></label></fieldset>`;
+}
+function lerTipos(f) {
+  const out = [], add = n => { n = (n || '').trim(); if (n && !out.some(x => nomeIgual(x, n))) out.push(n); };
+  f.querySelectorAll('input[name=tipoCk]:checked').forEach(c => add(c.value));
+  ((f.querySelector('[name=novoTipo]') || {}).value || '').split(',').forEach(add);
+  const ruim = out.find(n => n.length < 2 || n.length > 30);
+  return ruim ? { erro:'Cada tipo precisa ter de 2 a 30 letras.' } : { tipos:out };
+}
 function fornModalHTML() {
-  const L = Store.s.forn.lista || [];
-  const rows = L.map(x => `<form data-form="fornRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
-      <input name="nome" value="${esc(x.nome)}" maxlength="80" aria-label="Nome do fornecedor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button></form>`).join('');
-  return `<p class="muted" style="font-size:13px">Cadastre aqui quem vende para a 356. Ao lançar um custo no subsetor Fornecedores, você escolhe o fornecedor nesta lista.</p>
-    <div class="alert" role="alert" id="fornAlert"></div>${rows || '<p class="muted" style="font-size:14px;margin:12px 0">Nenhum fornecedor ainda.</p>'}
+  const L = Store.s.forn.lista || [], TT = tiposForn();
+  const fl = TT.includes(fornFiltroTipo) || fornFiltroTipo === '__sem' ? fornFiltroTipo : '';
+  const vis = L.filter(x => !fl ? true : fl === '__sem' ? !tiposDe(x).length : tiposDe(x).includes(fl));
+  const rows = vis.map(x => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><form data-form="fornRen" data-id="${esc(x.id)}" novalidate style="display:flex;gap:8px;align-items:center">
+      <input name="nome" value="${esc(x.nome)}" maxlength="80" aria-label="Nome do fornecedor" style="flex:1 1 auto"><button class="btn" type="submit" style="flex:0 0 auto">Renomear</button></form>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:4px;font-size:13px"><span class="muted">${tiposDe(x).length ? 'Tipos: ' + tiposDe(x).map(esc).join(', ') : 'Sem tipo de produto'}</span><button class="btn ghost" data-act="fornTipos" data-id="${esc(x.id)}" style="height:32px;padding:0 8px">Editar tipos</button></div></div>`).join('');
+  const filtro = L.length ? `<label class="f"><span>Filtrar por tipo de produto</span><select name="filtroTipo"><option value="">Todos os tipos</option>${TT.map(t => `<option value="${esc(t)}" ${fl === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}<option value="__sem" ${fl === '__sem' ? 'selected' : ''}>Sem tipo</option></select></label>` : '';
+  return `<p class="muted" style="font-size:13px">Cadastre aqui quem vende para a 356 e o tipo de produto de cada um. No lançamento de um gasto, o campo Fornecedor usa esta lista.</p>
+    <div class="alert" role="alert" id="fornAlert"></div>${filtro}${rows || `<p class="muted" style="font-size:14px;margin:12px 0">${L.length ? 'Nenhum fornecedor com esse tipo.' : 'Nenhum fornecedor ainda.'}</p>`}
     <form data-form="forn" novalidate style="margin-top:16px"><div class="alert" role="alert"></div>
       <label class="f"><span>Novo fornecedor</span><input name="nome" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
+      ${tiposCampo([])}
       <div class="acoes"><button class="btn pri full" type="submit">Adicionar fornecedor</button></div></form>`;
+}
+function fornTiposHTML(x) {
+  return `<form data-form="fornTipos" data-id="${esc(x.id)}" novalidate><div class="alert" role="alert"></div>
+    <p style="margin-bottom:12px"><b>${esc(x.nome)}</b></p>${tiposCampo(tiposDe(x))}
+    <div class="acoes"><button class="btn pri full" type="submit">Salvar tipos</button></div></form>`;
+}
+async function salvarFornTipos(f) {
+  const av = f.querySelector('.alert'), id = f.dataset.id, r = lerTipos(f), L = Store.s.forn.lista || [];
+  if (r.erro) { av.className = 'alert err on'; av.textContent = r.erro; return; }
+  try {
+    await colForn().doc(id).update({ tipos:r.tipos });
+    Store.set({ forn:{ lista:L.map(x => x.id === id ? { ...x, tipos:r.tipos } : x), erro:null } });
+    abrirModal('Fornecedores', fornModalHTML());
+  } catch (e) { av.className = 'alert err on'; av.textContent = msgErro(e); }
 }
 async function arquivarSub(id, arq) {
   const av = $('#subAlert');
@@ -939,12 +985,13 @@ async function renomearSubset(f, d) {
     invalidarPainel(); Store.set({ subset:{ ok:true, erro:null } }); abrirModal('Subsetores', subsModalHTML());
   } catch (e) { erro(msgErro(e)); }
 }
-async function criarFornecedor(nome) {
+async function criarFornecedor(nome, tipos) {
   const L = Store.s.forn.lista || [], ja = L.find(x => nomeIgual(x.nome, nome));
   if (ja) return ja;
   const ref = colForn().doc(), novo = { nome, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+  if (tipos && tipos.length) novo.tipos = tipos;
   await ref.set(novo);
-  const item = { id:ref.id, nome, criadoPorUid:novo.criadoPorUid };
+  const item = { id:ref.id, nome, criadoPorUid:novo.criadoPorUid, ...(novo.tipos ? { tipos:novo.tipos } : {}) };
   Store.s.forn = { lista:L.concat([item]).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')), erro:null };
   return item;
 }
@@ -953,7 +1000,8 @@ async function salvarForn(f, d) {
   const nome = (d.nome || '').trim();
   if (nome.length < 2) return erro('Digite o nome do fornecedor.');
   if ((Store.s.forn.lista || []).some(x => nomeIgual(x.nome, nome))) return erro('Esse fornecedor já está cadastrado.');
-  try { await criarFornecedor(nome); Store.set({ forn:Store.s.forn }); abrirModal('Fornecedores', fornModalHTML()); }
+  const tp = lerTipos(f); if (tp.erro) return erro(tp.erro);
+  try { await criarFornecedor(nome, tp.tipos); Store.set({ forn:Store.s.forn }); abrirModal('Fornecedores', fornModalHTML()); }
   catch (e) { erro(msgErro(e)); }
 }
 async function renomearForn(f, d) {
@@ -967,6 +1015,92 @@ async function renomearForn(f, d) {
     abrirModal('Fornecedores', fornModalHTML());
   } catch (e) { erro(msgErro(e)); }
 }
+
+
+/* ============ busca universal ============ */
+// Lê os dados uma vez (cache de 5 min) e procura no aparelho. Lançamentos e boletos: últimos 12 meses; o resto: tudo.
+// Pessoal só é lido e mostrado para os 2 donos (ehDonoPes); o gerente nunca recebe esses dados.
+const norm = v => String(v == null ? '' : v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const Busca = { dados:null, itens:[], em:0, carregando:false, falhas:[], mais:{} };
+const BUSCA_GRUPOS = [['lanc', 'Lançamentos'], ['forn', 'Fornecedores'], ['prod', 'Estoque'], ['bol', 'Boletos e contas'], ['free', 'Freelancers'], ['tar', 'Tarefas'], ['sub', 'Subsetores'], ['pes', 'Pessoal']];
+const valBusca = v => { const n = Number(v) || 0; return [brl(n), String(n).replace('.', ','), n.toFixed(2), n.toFixed(2).replace('.', ',')].join(' '); };
+async function carregarBusca(forcar) {
+  if (Busca.carregando) return;
+  if (!forcar && Busca.dados && Date.now() - Busca.em < 300000) return;
+  Busca.carregando = true;
+  const desde = mesAdd(mesAtual(), -11) + '-01', dono = ehDonoPes(), falhas = [];
+  const ler = async (nome, q) => { try { return (await q.get()).docs.map(d => ({ id:d.id, ...d.data() })); } catch (e) { console.error(e); falhas.push(nome); return []; } };
+  try {
+    const [lanc, forn, prod, bol, contas, free, tar, pes, contasP] = await Promise.all([
+      ler('lançamentos', colLanc().where('data', '>=', desde)), ler('fornecedores', colForn()), ler('estoque', colProd()),
+      ler('boletos', colBoletos().where('vencimento', '>=', desde)), ler('contas agendadas', colContas('contas')), ler('freelancers', colFree()), ler('tarefas', colTar()),
+      dono ? ler('Pessoal', colPes().where('data', '>=', desde)) : [], dono ? ler('contas pessoais', colContas('contasP')) : []]);
+    Busca.dados = { lanc, forn, prod, bol, contas, free, tar, pes, contasP }; Busca.falhas = falhas; Busca.em = Date.now();
+    Busca.itens = montarBusca(Busca.dados);
+  } finally { Busca.carregando = false; }
+}
+function montarBusca(D) {
+  const it = [], add = (g, o) => it.push({ g, ...o, hay:norm(o.hay.join(' ')), i:it.length });
+  const FM = Object.fromEntries(D.forn.map(f => [f.id, f]));
+  D.lanc.filter(l => l.tipo === 'custo').forEach(l => {
+    const f = FM[l.fornecedorId];
+    add('lanc', { titulo:l.fornecedorNome || l.descricao || l.categoria || 'Lançamento', sub:[dataBRfull(l.data), nomeSetor(l.setor), l.categoria, l.fornecedorNome && l.descricao ? l.descricao : ''].filter(Boolean).join(' · '),
+      valor:'−' + brl(l.valor), ord:l.data, data:l.data, hay:[l.descricao, l.categoria, l.fornecedorNome, nomeSetor(l.setor), f ? tiposDe(f).join(' ') : '', valBusca(l.valor), dataBRfull(l.data)] });
+  });
+  D.forn.forEach(f => {
+    const ls = D.lanc.filter(l => l.tipo === 'custo' && l.fornecedorId === f.id), tot = ls.reduce((a, l) => a + (Number(l.valor) || 0), 0);
+    add('forn', { titulo:f.nome, sub:(tiposDe(f).length ? 'Tipos: ' + tiposDe(f).join(', ') : 'Sem tipo de produto') + (ls.length ? ' · ' + ls.length + (ls.length === 1 ? ' gasto' : ' gastos') + ' em 12 meses (' + brl(tot) + ')' : ''), valor:'', ord:f.nome, hay:[f.nome, tiposDe(f).join(' ')], id:f.id });
+  });
+  D.prod.forEach(p => add('prod', { titulo:p.nome, sub:[fmtQtd(p.qtd) + ' ' + (p.unidade || 'un'), nomeSetor(p.setor), p.categoria].filter(Boolean).join(' · '), valor:'', ord:p.nome, hay:[p.nome, p.categoria, nomeSetor(p.setor), p.unidade] }));
+  D.bol.forEach(b => add('bol', { sub:['Boleto', 'vence ' + dataBRfull(b.vencimento), b.pago ? 'pago' : 'em aberto', nomeSetor(b.setor)].filter(Boolean).join(' · '), titulo:b.descricao || b.fornecedorNome || 'Boleto', valor:brl(b.valor), ord:b.vencimento, hay:[b.descricao, b.fornecedorNome, nomeSetor(b.setor), valBusca(b.valor), dataBRfull(b.vencimento), b.pago ? 'pago' : 'em aberto'] }));
+  D.contas.forEach(c => add('bol', { titulo:c.descricao || c.fornecedorNome || 'Conta', sub:['Conta agendada', c.recorrente ? 'todo dia ' + c.dia : 'só uma vez', nomeSetor(c.setor)].join(' · '), valor:brl(c.valor), ord:'0' + (c.descricao || ''), hay:[c.descricao, c.fornecedorNome, nomeSetor(c.setor), valBusca(c.valor)], conta:true }));
+  D.free.forEach(x => add('free', { titulo:x.nome, sub:[x.funcao, nomeSetor(x.setor), x.ativo === false ? 'inativo' : ''].filter(Boolean).join(' · '), valor:'', ord:x.nome, hay:[x.nome, x.funcao, nomeSetor(x.setor)] }));
+  D.tar.forEach(t => add('tar', { titulo:t.titulo, sub:[t.responsavel, nomeSetor(t.setor), t.prazo ? 'prazo ' + dataBRfull(t.prazo) : '', t.feita ? 'concluída' : 'aberta'].filter(Boolean).join(' · '), valor:'', ord:t.titulo, hay:[t.titulo, t.responsavel, nomeSetor(t.setor), t.feita ? 'concluida' : 'aberta'] }));
+  SETORES_TODOS.forEach(x => add('sub', { titulo:x.nome, sub:x.arquivado ? 'Subsetor arquivado' : 'Subsetor', valor:'', ord:x.nome, hay:[x.nome], id:x.id }));
+  D.pes.forEach(m => add('pes', { titulo:m.descricao || m.categoria || 'Movimento', sub:[dataBRfull(m.data), m.categoria, m.tipo === 'entrada' ? 'entrada' : 'gasto'].filter(Boolean).join(' · '), valor:(m.tipo === 'entrada' ? '+' : '−') + brl(m.valor), ord:m.data, data:m.data, hay:[m.descricao, m.categoria, m.tipo, valBusca(m.valor), dataBRfull(m.data)] }));
+  D.contasP.forEach(c => add('pes', { titulo:c.descricao || 'Conta', sub:['Conta pessoal', c.recorrente ? 'todo dia ' + c.dia : 'só uma vez'].join(' · '), valor:brl(c.valor), ord:'0' + (c.descricao || ''), hay:[c.descricao, valBusca(c.valor)], contaP:true }));
+  return it;
+}
+function buscaHTML() { return `<div class="busca"><label class="f" style="margin-bottom:0"><input id="buscaQ" type="search" placeholder="Nome, produto, fornecedor, valor…" autocomplete="off" aria-label="Buscar no app"></label><div id="buscaRes" aria-live="polite"></div><p class="muted" id="buscaInfo" style="font-size:12px;margin-top:12px"></p></div>`; }
+function renderBusca() {
+  const box = $('#buscaRes'), q = ($('#buscaQ') || {}).value || '', info = $('#buscaInfo'); if (!box) return;
+  if (info) info.innerHTML = Busca.dados ? `Procura em tudo que está cadastrado e nos últimos 12 meses de gastos e boletos. Atualizado às ${new Date(Busca.em).toTimeString().slice(0, 5)} · <button class="btn ghost" data-act="buscaAtualizar" style="height:28px;padding:0 8px">Atualizar</button>${Busca.falhas.length ? '<br>Não foi possível ler: ' + esc(Busca.falhas.join(', ')) + '.' : ''}` : '';
+  if (!Busca.dados) { box.innerHTML = '<p class="muted" style="font-size:14px;margin-top:16px">Carregando dados…</p>'; return; }
+  const ws = norm(q).split(/\s+/).filter(Boolean);
+  if (norm(q).trim().length < 2) { box.innerHTML = '<p class="muted" style="font-size:14px;margin-top:16px">Digite pelo menos 2 letras. Dá para buscar nome, produto, fornecedor, categoria, tipo de produto, valor ou data.</p>'; return; }
+  const ach = Busca.itens.filter(x => ws.every(w => x.hay.includes(w)));
+  if (!ach.length) { box.innerHTML = '<p class="muted" style="font-size:14px;margin-top:16px">Nada encontrado para essa busca.</p>'; return; }
+  box.innerHTML = BUSCA_GRUPOS.map(([g, nome]) => {
+    const L = ach.filter(x => x.g === g).sort((a, b) => /^\d{4}-/.test(a.ord) && /^\d{4}-/.test(b.ord) ? b.ord.localeCompare(a.ord) : a.ord.localeCompare(b.ord, 'pt-BR')); if (!L.length) return '';
+    const ver = Busca.mais[g] ? L : L.slice(0, 6);
+    return `<section data-grupo="${g}"><h3>${esc(nome)} · ${L.length}</h3>${ver.map(x => `<button class="bi" data-act="buscaIr" data-i="${x.i}" data-g="${x.g}"><span><b>${esc(x.titulo)}${x.g === 'pes' ? ' <span class="badge">Pessoal</span>' : ''}</b><small>${esc(x.sub)}</small></span><span class="bv">${esc(x.valor)}</span></button>`).join('')}${L.length > ver.length ? `<button class="btn ghost" data-act="buscaMais" data-g="${g}" style="margin-top:6px">Mostrar mais ${L.length - ver.length}</button>` : ''}</section>`;
+  }).join('');
+}
+async function abrirBusca() {
+  if (Store.s.fase !== 'app') return;
+  Busca.mais = {}; abrirModal('Buscar', buscaHTML()); renderBusca();
+  try { await carregarBusca(false); } catch (e) { console.error(e); const b = $('#buscaRes'); if (b) b.innerHTML = '<p class="muted" style="font-size:14px;margin-top:16px">Não foi possível carregar os dados. Tente de novo.</p>'; return; }
+  renderBusca();
+}
+function irBusca(x) {
+  const e = Store.s.emp, ir = (hash, ext) => { history.replaceState(null, '', hash); window.scrollTo(0, 0); Store.set(ext); };
+  fecharModal();
+  if (x.g === 'lanc') ir('#/empresa', { rota:'empresa', emp:{ ...e, sub:'todos' }, lanc:{ ...Store.s.lanc, mes:x.data.slice(0, 7), lista:null, chave:null, tab:'lanc' } });
+  else if (x.g === 'forn') { fornFiltroTipo = ''; abrirModal('Fornecedores', fornModalHTML()); }
+  else if (x.g === 'prod') ir('#/empresa', { rota:'empresa', emp:{ ...e, sub:'todos' }, lanc:{ ...Store.s.lanc, tab:'estoque' } });
+  else if (x.g === 'tar') ir('#/empresa', { rota:'empresa', emp:{ ...e, sub:'todos' }, lanc:{ ...Store.s.lanc, tab:'tarefas' } });
+  else if (x.g === 'sub') ir('#/empresa', { rota:'empresa', emp:{ ...e, sub:x.id }, lanc:{ ...Store.s.lanc, tab:'lanc' } });
+  else if (x.g === 'bol') ir('#/boletos', { rota:'boletos', boletos:{ ...Store.s.boletos, aba:x.conta ? 'contas' : 'todas' } });
+  else if (x.g === 'free') ir('#/freelancers', { rota:'freelancers' });
+  else if (x.g === 'pes' && ehDonoPes()) ir('#/pessoal', { rota:'pessoal', pes:{ ...Store.s.pes, filtro:x.contaP ? 'contas' : 'todos', ...(x.data ? { mes:x.data.slice(0, 7), lista:null, chave:null } : {}) } });
+}
+document.addEventListener('input', e => { if (e.target && e.target.id === 'buscaQ') renderBusca(); });
+document.addEventListener('keydown', e => {
+  if (Store.s.fase !== 'app') return;
+  const k = (e.key || '').toLowerCase(), t = e.target, digitando = t && /^(input|textarea|select)$/i.test(t.tagName);
+  if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); abrirBusca(); }
+  else if (k === '/' && !digitando && !$('#modal .md')) { e.preventDefault(); abrirBusca(); }
+});
 
 /* ============ contas agendadas (únicas ou recorrentes) ============ */
 const ehPes = () => Store.s.rota === 'pessoal';
@@ -1577,7 +1711,7 @@ function setorHTML(s, set) {
   const selS = x => todos || x.setor === set.id;
   const chipSub = (id, nome) => `<button class="chip ${set.id === id ? 'on' : ''}" data-act="empSub" data-s="${esc(id)}">${esc(nome)}</button>`;
   const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${set.forn ? '<button class="btn" data-act="fornManage">Fornecedores</button>' : ''}<button class="btn" data-act="catsManage">Categorias</button><button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="fornManage">Fornecedores</button><button class="btn" data-act="catsManage">Categorias</button><button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
   const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div></div>`;
   const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
@@ -1637,14 +1771,14 @@ function formLanc(l, setorPadrao, tipoPadrao) {
     <div class="alert" role="alert"></div>
     <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
     <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(setor)}${!l && ehDonoPes() ? '<option value="__pes">Pessoal (só Luiz e Eliana)</option>' : ''}</select></label>
-    <div data-forn ${setor === ID_FORN ? '' : 'class="hide"'}>
-      <label class="f"><span>Fornecedor</span><select name="fornecedorId">${semForn ? '' : '<option value="">Escolha o fornecedor</option>'}${optsForn}<option value="__novo" ${semForn ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
-      <label class="f ${semForn ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
-    </div>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f" data-catemp><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
     <label class="f hide" data-novacat><span>Nome da nova categoria</span><input name="novaCategoria" maxlength="40" placeholder="Ex.: Embalagens" autocomplete="off"></label>
+    <div data-forn class="${tipo === 'custo' ? '' : 'hide'}">
+      <label class="f"><span>Fornecedor <span class="muted" style="font-weight:400" data-fornopc>${setor === ID_FORN ? '' : '· opcional'}</span></span><select name="fornecedorId"><option value="">${setor === ID_FORN ? 'Escolha o fornecedor' : 'Sem fornecedor'}</option>${optsForn}<option value="__novo" ${semForn && setor === ID_FORN ? 'selected' : ''}>+ Cadastrar novo fornecedor…</option></select></label>
+      <label class="f ${semForn && setor === ID_FORN ? '' : 'hide'}" data-novoforn><span>Nome do novo fornecedor</span><input name="novoFornecedor" maxlength="80" placeholder="Ex.: Distribuidora Boa Safra" autocomplete="off"></label>
+    </div>
     ${!l && ehDonoPes() ? `<label class="f hide" data-catpes><span>Categoria pessoal</span><select name="categoriaPes">${opcoesCat('gasto', '')}</select></label>
     <label class="f hide" data-novacatpes><span>Nome da nova categoria</span><input name="novaCategoriaPes" maxlength="40" placeholder="Ex.: Pet" autocomplete="off"></label>` : ''}
     ${jurosCampo(l && l.juros, tipo === 'custo' ? '' : 'hide')}
@@ -1668,8 +1802,9 @@ async function salvarLanc(f, d) {
   let catNome = d.categoria || '';
   if (catNome === '__nova') { const r = validarNovaCat(d.novaCategoria, catsEmpresa('')); if (r.erro) return erro(r.erro); catNome = r.nome; }
   const precisaForn = d.setor === ID_FORN && d.tipo === 'custo';
+  const querForn = d.tipo === 'custo' && (precisaForn || !!d.fornecedorId);
   const novoNome = (d.novoFornecedor || '').trim();
-  if (precisaForn) {
+  if (querForn) {
     if (d.fornecedorId === '__novo') { if (novoNome.length < 2) return erro('Digite o nome do novo fornecedor.'); }
     else if (!d.fornecedorId || !(Store.s.forn.lista || []).some(x => x.id === d.fornecedorId)) return erro('Escolha o fornecedor ou cadastre um novo.');
   }
@@ -1678,7 +1813,7 @@ async function salvarLanc(f, d) {
     const fi = !f.dataset.id && f.querySelector('input[name=fotoNota]'), foto = fi ? (await prepArquivos(fi.files, 1, true))[0] : null;
     let forn = null;
     if (d.categoria === '__nova') await criarCatEmp(catNome);
-    if (precisaForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
+    if (querForn) forn = d.fornecedorId === '__novo' ? await criarFornecedor(novoNome) : (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId);
     const id = f.dataset.id, mud = { tipo:d.tipo, setor:d.setor, valor, data, categoria:catNome, descricao:(d.descricao || '').trim(), juros:JJ.j, fornecedorId:forn ? forn.id : null, fornecedorNome:forn ? forn.nome : null };
     const L = Store.s.lanc; let ref = id ? colLanc().doc(id) : colLanc().doc(), novo = null;
     if (id) await ref.update(mud);
@@ -2047,7 +2182,7 @@ function graficoLinha(eixo, series) {
 function analiseHTML(ag, o) {
   const NOMES_ANG = { categoria:'Categoria', subsetor:'Subsetor', fornecedor:'Fornecedor' };
   const ctl = `<div class="ctl noprint">${o.angulos.length > 1 ? `<div class="seg" role="group" aria-label="Ver por">${o.angulos.map(a => `<button class="${o.angulo === a ? 'on' : ''}" data-act="${o.acaoAngulo}" data-v="${a}">${NOMES_ANG[a]}</button>`).join('')}</div>` : ''}<div class="seg" role="group" aria-label="Período">${[['dia', 'Por dia'], ['mes', 'Por mês']].map(([v, n]) => `<button class="${o.modo === v ? 'on' : ''}" data-act="${o.acaoModo}" data-v="${v}">${n}</button>`).join('')}</div></div>`;
-  const head = `<div class="ph2"><h3>Análise de gastos${o.angulos.length > 1 ? ' por ' + NOMES_ANG[o.angulo].toLowerCase() : ''}</h3>${ctl}</div>`;
+  const head = `<div class="ph2"><h3>Análise de gastos${o.angulos.length > 1 ? ' por ' + NOMES_ANG[o.angulo].toLowerCase() : ''}</h3>${ctl}</div>${o.filtroTipo ? `<div style="padding:0 20px 8px">${o.filtroTipo}</div>` : ''}`;
   const nota = o.angulo === 'fornecedor' && ag.excluido > 0 ? `<p class="muted" style="font-size:13px;padding:0 20px">${brl(ag.excluido)} em gastos sem fornecedor não entram nesta visão.</p>` : '';
   if (!ag.itens.length) return `<section class="panel analise" style="margin:0">${head}${nota}<div class="pb muted" style="font-size:14px">Nenhum gasto ${o.angulo === 'fornecedor' ? 'com fornecedor ' : ''}em ${esc(mesNome(o.mes, true).toLowerCase())}.</div></section>`;
   const leg = ag.itens.map(x => `<div><i style="background:${x.cor}"></i><span title="${esc(x.nome)}">${esc(x.nome)}</span><b>${pct(x.pct)}</b></div>`).join('');
@@ -2108,7 +2243,11 @@ function relatoriosHTML(s) {
   const cat = (a, tot) => tb(['Categoria', 'Valor', '%'], a.map(r => tr([esc(r.c), brl(r.v), pct(tot > 0 ? r.v / tot : 0)])), 'Nenhum lançamento no mês.');
   let corpo = '';
   const angs = esc_ === 'geral' ? ['categoria', 'subsetor', 'fornecedor'] : ['categoria', 'fornecedor'], ang = angs.includes(R.ang) ? R.ang : 'categoria';
-  corpo += analiseHTML(agregarGastos(esc_ === 'geral' ? R.dados.hist : R.dados.hist.filter(l => l.setor === esc_), ang, mes, R.modo), { angulos:angs, angulo:ang, modo:R.modo, mes, acaoAngulo:'relAng', acaoModo:'relModo' });
+  const TT = tiposForn(), tipoSel = ang === 'fornecedor' && TT.includes(R.tipo) ? R.tipo : '';
+  const tipoDe = l => { const f = (Store.s.forn.lista || []).find(y => y.id === l.fornecedorId); return f ? tiposDe(f) : []; };
+  let baseRel = esc_ === 'geral' ? R.dados.hist : R.dados.hist.filter(l => l.setor === esc_);
+  if (tipoSel) baseRel = baseRel.filter(l => tipoDe(l).includes(tipoSel));
+  corpo += analiseHTML(agregarGastos(baseRel, ang, mes, R.modo), { angulos:angs, angulo:ang, modo:R.modo, mes, acaoAngulo:'relAng', acaoModo:'relModo', filtroTipo:ang === 'fornecedor' && TT.length ? `<label class="tipof noprint"><span class="muted" style="font-size:13px">Tipo de produto</span> <select id="relTipo"><option value="">Todos os tipos</option>${TT.map(t => `<option value="${esc(t)}" ${tipoSel === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>` : '' });
   if (esc_ === 'geral') corpo += painel('Gastos por subsetor', '<div class="gsub">' + tb(['Subsetor', 'Gasto no mês', '% dos gastos', 'Mês anterior', 'Variação', 'Lançamentos'], x.setores.map(r => tr([esc(r.nome), brl(r.c), x.custos > 0 ? pct(r.c / x.custos) : '—', brl(r.ca), r.ca > 0 ? `<span style="color:${r.c > r.ca ? 'var(--errt)' : 'var(--ok)'}">${r.c >= r.ca ? '+' : '−'}${pct(Math.abs(r.c - r.ca) / r.ca)}</span>` : (r.c > 0 ? 'novo' : '—'), r.n])).concat([tr(['<b>Total</b>', `<b>${brl(x.custos)}</b>`, '100%', `<b>${brl(x.custosAnt)}</b>`, '', `<b>${x.lanc.length}</b>`])]), '') + '</div>');
   const bTxt = `${x.bol.length} ${x.bol.length === 1 ? 'boleto vence' : 'boletos vencem'} no mês`;
   corpo += painel('Juros pagos no mês', tb(['Origem', 'Qtd', 'Juros'], [tr(['Custos lançados', x.juros.nl, brl(x.juros.l)]), tr(['Boletos pagos no mês', x.juros.nb, brl(x.juros.b)]), tr(['Contas agendadas pagas no mês', x.juros.nc, brl(x.juros.c)]), tr(['<b>Total de juros</b>', `<b>${x.juros.nl + x.juros.nb + x.juros.nc}</b>`, `<b style="color:${x.juros.total > 0 ? 'var(--warn)' : 'var(--t1)'}">${brl(x.juros.total)}</b>`])], '')) + '\n  ';
@@ -2423,6 +2562,7 @@ V.app = s => {
 <div class="app">
   <aside class="side">
     <a class="brand" href="#/painel" aria-label="356 Gestão, início">${logo()}</a>
+    <button class="srch" data-act="buscaAbrir" aria-label="Buscar no app">${ico('busca')}<span>Buscar</span><kbd>Ctrl K</kbd></button>
     <nav class="nav" aria-label="Principal">${nav}</nav>
     ${avisosBox()}
     <div class="temabox"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div>
@@ -2433,7 +2573,7 @@ V.app = s => {
     </div>
   </aside>
   <div class="main">
-    <div class="mhead"><a href="#/painel" aria-label="Início">${logo('sm')}</a><a class="av" href="#/mais" aria-label="Conta de ${esc(nomeCurto)}">${esc(iniciais(s))}</a></div>
+    <div class="mhead"><a href="#/painel" aria-label="Início">${logo('sm')}</a><div class="mh2"><button class="sbtn" data-act="buscaAbrir" aria-label="Buscar no app">${ico('busca')}</button><a class="av" href="#/mais" aria-label="Conta de ${esc(nomeCurto)}">${esc(iniciais(s))}</a></div></div>
     ${s.online ? '' : '<div class="offline" role="status">Sem internet. O que você vê pode estar desatualizado.</div>'}
     <div class="wrap" id="page">${page(atual.id, s, nomeCurto)}</div>
   </div>
@@ -2779,6 +2919,11 @@ const acoes = {
   subArquivar(el) { arquivarSub(el.dataset.id, true); },
   subReativar(el) { arquivarSub(el.dataset.id, false); },
   fornManage() { abrirModal('Fornecedores', fornModalHTML()); },
+  buscaAbrir() { abrirBusca(); },
+  buscaIr(el) { const x = Busca.itens[+el.dataset.i]; if (x) irBusca(x); },
+  buscaMais(el) { Busca.mais[el.dataset.g] = true; renderBusca(); },
+  async buscaAtualizar() { Busca.dados = null; renderBusca(); try { await carregarBusca(true); } catch (e) { console.error(e); } renderBusca(); },
+  fornTipos(el) { const x = (Store.s.forn.lista || []).find(y => y.id === el.dataset.id); if (x) abrirModal('Tipos de produto', fornTiposHTML(x)); },
   lancEditar(el) { const l = (Store.s.lanc.lista || []).find(x => x.id === el.dataset.id); if (l) abrirModal('Editar lançamento', formLanc(l)); },
   lancTipo(el) {
     const f = el.closest('form'), tp = el.dataset.t; f.querySelector('[name=tipo]').value = tp;
@@ -3026,6 +3171,7 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'subsetRen') { await renomearSubset(f, d); return; }
   if (f.dataset.form === 'forn') { await salvarForn(f, d); return; }
   if (f.dataset.form === 'fornRen') { await renomearForn(f, d); return; }
+  if (f.dataset.form === 'fornTipos') { await salvarFornTipos(f); return; }
   if (f.dataset.form === 'produto') { await salvarProd(f, d); return; }
   if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
   if (f.dataset.form === 'vendaMes') { await salvarVendaMes(f, d); return; }
@@ -3054,7 +3200,7 @@ document.addEventListener('change', e => {
 document.addEventListener('change', e => {
   const t = e.target, f = t && t.closest ? t.closest('form[data-form=lancamento],form[data-form=boleto],form[data-form=conta]') : null;
   if (!f) return;
-  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) b.classList.toggle('hide', t.value !== ID_FORN); const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } const ae = f.querySelector('[data-anxemp]'), ap = f.querySelector('[data-anxpes]'); if (ae && ap) { ae.classList.toggle('hide', t.value === '__pes'); ap.classList.toggle('hide', t.value !== '__pes'); } }
+  if (t.name === 'setor') { const b = f.querySelector('[data-forn]'); if (b) { if (f.dataset.form === 'lancamento') { b.classList.toggle('hide', t.value === '__pes'); const o0 = b.querySelector('select[name=fornecedorId] option[value=""]'); if (o0) o0.textContent = t.value === ID_FORN ? 'Escolha o fornecedor' : 'Sem fornecedor'; const op = b.querySelector('[data-fornopc]'); if (op) op.textContent = t.value === ID_FORN ? '' : '· opcional'; } else b.classList.toggle('hide', t.value !== ID_FORN); } const ds = f.querySelector('[data-desc]'); if (ds) ds.classList.toggle('hide', t.value === ID_FORN); const ce = f.querySelector('[data-catemp]'), cp = f.querySelector('[data-catpes]'); if (ce && cp) { ce.classList.toggle('hide', t.value === '__pes'); cp.classList.toggle('hide', t.value !== '__pes'); } const ae = f.querySelector('[data-anxemp]'), ap = f.querySelector('[data-anxpes]'); if (ae && ap) { ae.classList.toggle('hide', t.value === '__pes'); ap.classList.toggle('hide', t.value !== '__pes'); } }
   if (t.name === 'categoria') { const n = f.querySelector('[data-novacat]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
   if (t.name === 'categoriaPes') { const n = f.querySelector('[data-novacatpes]'); if (n) n.classList.toggle('hide', t.value !== '__nova'); }
   if (t.name === 'fornecedorId') { const n = f.querySelector('[data-novoforn]'); if (n) n.classList.toggle('hide', t.value !== '__novo'); }
@@ -3065,6 +3211,8 @@ document.addEventListener('change', e => {
   const r = (Store.s.vendas.porMes || {})[t.value]; f.querySelector('[name=valor]').value = valorBR(r && r.valor); f.querySelector('[name=obs]').value = r ? r.obs : '';
 });
 document.addEventListener('change', e => { if (e.target.id === 'arq' && e.target.files[0]) enviarComprovante(e.target.files[0]); });
+document.addEventListener('change', e => { const t = e.target; if (t && t.id === 'relTipo') Store.set({ rel:{ ...Store.s.rel, tipo:t.value } }); });
+document.addEventListener('change', e => { const t = e.target; if (t && t.name === 'filtroTipo' && t.closest('#modal')) { fornFiltroTipo = t.value; abrirModal('Fornecedores', fornModalHTML()); } });
 document.addEventListener('change', e => { if (e.target.id === 'arqPes' && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; enviarAnexoPes(f); } });
 
 /* ============ service worker (offline do "esqueleto") ============ */
