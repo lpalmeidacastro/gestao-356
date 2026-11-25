@@ -1,7 +1,7 @@
 // gestao-356 · service worker · v5
 // Guarda só o "esqueleto" do app (arquivos do próprio site). Firebase e fontes passam direto pela rede.
-const VERSAO = 'g356-v28';
-const ARQUIVOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
+const VERSAO = 'g356-v29';
+const ARQUIVOS = ['./', './index.html', './manifest.json', './manifest-lancar.json', './icon-lancar-180.png', './icon-lancar-192.png', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSAO).then(c => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));

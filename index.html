@@ -16,6 +16,17 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script>
+/* modo "Lançar" (?lancar=1): ícone próprio na tela inicial que abre direto no Novo lançamento.
+   Troca manifesto, ícone e nome antes de o iPhone ler, para virar um segundo ícone separado do app. */
+(function(){if(!/[?&]lancar\b/.test(location.search))return;
+var q=function(s){return document.querySelector(s)};
+q('link[rel=manifest]').href='manifest-lancar.json';
+q('link[rel=apple-touch-icon]').href='icon-lancar-180.png';
+q('link[rel=icon]').href='icon-lancar-192.png';
+document.title='Lançar · 356';
+var m=document.createElement('meta');m.name='apple-mobile-web-app-title';m.content='Lançar';document.head.appendChild(m);})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&family=Russo+One&display=swap">
@@ -118,6 +129,17 @@ input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color
 .tabs button{height:36px;border:0;border-radius:8px;background:transparent;color:var(--t3);font-weight:510;font-size:13px;cursor:pointer;transition:background-color .2s var(--ease)}
 .tabs button.on{background:var(--track);color:var(--t1)}
 .links{display:flex;justify-content:space-between;margin-top:16px;font-size:13px}
+/* modo Lançar (ícone próprio) */
+.rap{min-height:100dvh;display:flex;justify-content:center;align-items:flex-start;padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+.rap .card{max-width:480px;padding:24px}
+.rap .brand{margin-bottom:16px}.rap .logo-img.lg{width:96px}
+.rap .acoes{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.rap .rodape{display:flex;justify-content:center;margin-top:16px;font-size:13px}
+.rap .feito{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:8px 0 16px}
+.rap .feito .bola{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--okbg);color:var(--ok)}
+.rap .feito .bola .i{width:32px;height:32px;stroke-width:2.5}
+.rap .feito .v{font-family:var(--titulo);font-size:32px;color:var(--t1)}
+@media (max-width:760px){.rap{padding-left:8px;padding-right:8px}.rap .card{padding:20px 16px}}
 .links button{background:none;border:0;color:var(--link);cursor:pointer;font-size:13px;min-height:44px}
 
 
@@ -552,6 +574,7 @@ const ICON = {
   camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   close:'<path d="M6 6l12 12M18 6L6 18"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   grafico:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   busca:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'
 };
@@ -1896,7 +1919,7 @@ function formLanc(l, setorPadrao, tipoPadrao) {
   return `<form data-form="lancamento" data-id="${l ? esc(l.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
     <input type="hidden" name="tipo" value="${tipo}">${tipo === 'venda' ? '<p class="muted" style="font-size:13px;margin-bottom:12px">Venda lançada no modelo antigo. Ela não entra mais nas contas; use "Venda do mês".</p>' : ''}
-    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(setor)}${!l && ehDonoPes() ? '<option value="__pes">Pessoal (só Luiz e Eliana)</option>' : ''}</select></label>
+    <label class="f"><span>Subsetor</span><select name="setor">${SETORES.map(x => `<option value="${x.id}" ${setor === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}${optArq(setor)}${!l && ehDonoPes() ? `<option value="__pes" ${setor === '__pes' ? 'selected' : ''}>Pessoal (só Luiz e Eliana)</option>` : ''}</select></label>
     <label class="f"><span>Valor (R$)</span><input name="valor" inputmode="decimal" value="${l ? esc(String(l.valor).replace('.', ',')) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data</span><input name="data" type="date" value="${l ? esc(l.data) : hojeStr()}" max="${hojeStr()}"></label>
     <label class="f" data-catemp><span>Categoria</span><select name="categoria" id="catSel">${cats(tipo)}</select></label>
@@ -1953,6 +1976,7 @@ async function salvarLanc(f, d) {
     lista = id ? lista.filter(x => x.id !== id) : lista;
     if (mes === L.mes) lista = lista.concat([{ ...(id ? (L.lista.find(x => x.id === id) || {}) : novo), ...mud, id:ref.id, criadoEm:null }]);
     invalidarPainel(); fecharModal();
+    if (RAPIDO && !id) rapFeito(valor, nomeSetor(d.setor), d.setor);
     Store.set({ lanc:{ ...L, lista, erro:null }, forn:Store.s.forn });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
@@ -2511,7 +2535,9 @@ async function salvarPes(f, d) {
     }
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
     if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
-    fecharModal(); Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
+    fecharModal();
+    if (RAPIDO && !id) rapFeito(valor, 'Pessoal', '__pes');
+    Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 async function prepArquivos(files, max, soImg) {
@@ -2854,6 +2880,44 @@ async function aposPagina(id, s) {
   }
 }
 
+/* ============ modo Lançar (?lancar=1) ============
+   Segundo ícone na tela inicial: abre só o formulário de Novo lançamento (o mesmo do app).
+   A tela só redesenha quando muda de etapa (carregando → formulário → lançado), para não apagar o que está sendo digitado. */
+const RAPIDO = /[?&]lancar\b/.test(location.search);
+let rapEtapa = null, rapUlt = null, rapN = 0;
+function rapFeito(valor, onde, setor) {
+  rapUlt = { valor, onde, n:++rapN };
+  try { localStorage.setItem('g356-ult-setor', setor); } catch (e) {}
+}
+function rapSetor() {
+  let v = ''; try { v = localStorage.getItem('g356-ult-setor') || ''; } catch (e) {}
+  return SETORES.some(x => x.id === v) || (v === '__pes' && ehDonoPes()) ? v : undefined;
+}
+function rapPronto(s) { return s.subset.ok && s.forn.lista !== null && s.catemp.lista !== null && (!ehDonoPes() || !!s.pes.cats); }
+function renderRapido(s) {
+  if (!s.subset.ok) carregarSubs();
+  if (s.forn.lista === null) carregarForn();
+  if (s.catemp.lista === null) carregarCatEmp();
+  if (ehDonoPes() && !s.pes.cats) carregarPes();
+  const etapa = rapUlt ? 'ok' + rapUlt.n : (rapPronto(s) ? 'form' : 'carregando');
+  if (etapa === rapEtapa && ultimaFase === 'app') return;
+  rapEtapa = etapa;
+  $('#root').innerHTML = V.rapido(s, rapUlt ? 'ok' : etapa);
+  window.scrollTo(0, 0);
+  const sel = $('#root select[name=setor]');
+  if (sel && sel.value === '__pes') sel.dispatchEvent(new Event('change', { bubbles:true }));
+}
+V.rapido = (s, etapa) => {
+  const instalado = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  const dica = instalado ? '' : '<div class="alert on" style="margin-bottom:16px">Para virar um ícone na tela inicial: no Safari toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b>.</div>';
+  let corpo;
+  if (etapa === 'carregando') corpo = '<h1>Novo lançamento</h1><div class="sk" style="width:100%;margin-top:16px"><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div>';
+  else if (etapa === 'ok') corpo = `<div class="feito" role="status"><div class="bola">${ico('check')}</div><h1>Lançado</h1><div class="v">${brl(rapUlt.valor)}</div><p class="muted" style="font-size:14px">em ${esc(rapUlt.onde)}</p></div>
+    <div class="acoes"><button class="btn pri full" type="button" data-act="rapOutro">Lançar outro</button></div>`;
+  else corpo = `<h1>Novo lançamento</h1><p class="sub" style="margin-bottom:16px">Salva direto no app.</p>${dica}${formLanc(null, rapSetor())}`;
+  return `<div class="rap"><div class="card">${marca()}${corpo}<div class="rodape"><a href="./">Abrir o app completo</a></div></div></div>`;
+};
+
 /* ============ render ============ */
 let modoLogin = 'entrar';
 let ultimaFase = null;
@@ -2867,6 +2931,7 @@ function render() {
   else if (s.fase === 'verificar') root.innerHTML = V.verificar(s);
   else if (s.fase === 'semacesso') root.innerHTML = V.semacesso(s);
   else if (s.fase === 'erro') root.innerHTML = V.erro(s);
+  else if (s.fase === 'app' && RAPIDO) renderRapido(s);
   else if (s.fase === 'app') {
     const y = window.scrollY;
     root.innerHTML = V.app(s);
@@ -2949,6 +3014,7 @@ const acoes = {
   boletoNovo() { abrirModal('Novo boleto', formBoleto(null)); },
   boletoEditar(el) { const b = Store.s.boletos.lista.find(x => x.id === el.dataset.id); if (b) abrirModal('Editar boleto', formBoleto(b)); },
   fecharModal() { fecharModal(); },
+  rapOutro() { rapUlt = null; rapEtapa = null; render(); },
   filtroBoleto(el) { Store.set({ boletos:{ ...Store.s.boletos, filtro:el.dataset.f } }); },
   boletosRecarregar() { Store.set({ boletos:{ ...Store.s.boletos, lista:null, erro:null } }); },
   async pagar(el) {
