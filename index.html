@@ -309,6 +309,23 @@ tbody tr:hover{background:var(--w1)}
 .fact{display:flex;align-items:center;justify-content:flex-end;gap:6px}
 .btn.pgok{background:rgba(62,207,142,.1);border-color:rgba(62,207,142,.3);color:var(--ok);height:44px}
 .mrow{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,.5fr) minmax(0,.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) var(--act,124px);gap:12px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.calwrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;padding:16px 20px}
+.cal{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--card)}
+.calh{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;min-width:0}
+.calh b{font-size:14px;font-weight:590;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calh span{font-size:12px;color:var(--t3)}
+.calg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cw{font-size:11px;color:var(--t3);text-align:center;padding:2px 0}
+.cd,.ce{height:34px;border-radius:6px}
+.cd{width:auto;padding:0;border:1px solid transparent;background:var(--w1);color:var(--t2);font-size:13px;font-weight:510;cursor:pointer;position:relative;font-family:inherit}
+.cd:hover{background:var(--w2)}
+.cd.pg{background:rgba(62,207,142,.18);border-color:rgba(62,207,142,.4);color:var(--ok)}
+.cd.ap{background:rgba(255,176,64,.18);border-color:rgba(255,176,64,.4);color:var(--warn)}
+.cd.pg::after{content:"\2713";position:absolute;top:1px;right:3px;font-size:9px;line-height:1}
+.cd.hj{box-shadow:0 0 0 1.5px var(--t2)}
+.callg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t3);margin-right:8px}
+.callg .lg{width:10px;height:10px;border-radius:3px;display:inline-block}
+.callg .lg.pg{background:var(--ok)} .callg .lg.ap{background:var(--warn);margin-left:6px}
 .mrow.hd{background:var(--w1);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
 .mrow .mc{text-align:right;color:var(--t1)}
 .mrow .mc.z{color:var(--t3)}
@@ -1520,6 +1537,30 @@ function resumoDia(F, dia) {
   return { presentes:pres.length, faltas:ps.filter(p => p.status === 'faltou').length, aPagar:pres.filter(p => !p.pago).reduce((a, p) => a + (Number(p.valor) || 0), 0), pago:pres.filter(p => p.pago).reduce((a, p) => a + (Number(p.valor) || 0), 0), pres };
 }
 
+function calendarioHTML(F, mes, hoje, linhas) {
+  const [y, m] = mes.split('-').map(Number), nd = new Date(y, m, 0).getDate(), off = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const sem = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  const ant = mesAdd(mes, -1), prox = mesAdd(mes, 1), proxOk = prox <= hoje.slice(0, 7);
+  const cals = linhas.filter(x => x.ps > 0 || x.f.ativo !== false).map(x => {
+    const por = {}; Object.values(F.pres).forEach(p => { if (p.freelaId === x.f.id && p.data.slice(0, 7) === mes && p.status === 'presente') por[p.data] = p; });
+    const dias = Object.keys(por).length, pagos = Object.values(por).filter(p => p.pago).length;
+    let cel = '<span class="ce"></span>'.repeat(off);
+    for (let d = 1; d <= nd; d++) {
+      const dia = mes + '-' + pad(d), p = por[dia], cl = p ? (p.pago ? 'pg' : 'ap') : '';
+      const rot = pad(d) + '/' + pad(m) + (p ? (p.pago ? ': trabalhou, pago' : ': trabalhou, a pagar') : '');
+      cel += `<button class="cd ${cl} ${dia === hoje ? 'hj' : ''}" data-act="calDia" data-dia="${dia}" aria-label="${rot}">${d}</button>`;
+    }
+    return `<div class="cal" data-id="${esc(x.f.id)}"><div class="calh"><b title="${esc(x.f.nome)}">${esc(x.f.nome)}</b>
+      <span>${dias} ${dias === 1 ? 'dia' : 'dias'} · ${pagos} ${pagos === 1 ? 'pago' : 'pagos'} · ${dias - pagos} a pagar</span></div>
+      <div class="calg">${sem.map(w => `<span class="cw">${w}</span>`).join('')}${cel}</div></div>`;
+  }).join('');
+  return `<section class="panel calpanel" style="margin:0"><div class="ph2"><h3>Calendário de ${esc(mesNome(mes, true).toLowerCase())}</h3>
+    <div class="dnav"><span class="callg"><span class="lg pg"></span>Pago <span class="lg ap"></span>A pagar</span>
+      <button class="ib" data-act="calMes" data-m="${ant}" aria-label="Mês anterior">${ico('esq')}</button>
+      <button class="ib" data-act="calMes" data-m="${prox}" aria-label="Próximo mês" ${proxOk ? '' : 'disabled style="opacity:.35;cursor:default"'}>${ico('dir')}</button></div></div>
+    ${cals ? `<div class="calwrap">${cals}</div>` : `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Cadastre um freelancer para ver o calendário.</div>`}</section>`;
+}
+
 function freelancersHTML(s) {
   const F = s.free, dia = diaFree(s), hoje = hojeStr(), mes = dia.slice(0, 7);
   const head = `<div class="ph"><div><div class="ctx">Lista de presença · valor combinado por dia</div><h1>Freelancers</h1></div>
@@ -1572,7 +1613,7 @@ function freelancersHTML(s) {
       <div role="table">${linhas || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazioDia}</div>`}</div></section>
     <section class="panel" style="margin:0"><div class="ph2"><h3>Resumo de ${esc(mesNome(mes, true).toLowerCase())}</h3><span class="muted" style="font-size:13px">Total ${brl(tt.tot)} · pago ${brl(tt.pg)} · a pagar <b style="color:${tt.ab ? 'var(--warn)' : 'var(--t1)'}">${brl(tt.ab)}</b></span></div>
       <div role="table"><div class="mrow hd" role="row"><span>Freelancer</span><span style="text-align:right">Dias</span><span style="text-align:right">Faltas</span><span style="text-align:right">Total</span><span style="text-align:right">Pago</span><span style="text-align:right">A pagar</span><span></span></div>
-      ${mRows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Sem presenças neste mês.</div>`}</div></section></div>`;
+      ${mRows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Sem presenças neste mês.</div>`}</div></section></div>${calendarioHTML(F, mes, hoje, mesRows)}</div>`;
 }
 
 function freelancersCard(s) {
@@ -2875,6 +2916,12 @@ const acoes = {
   freeRecarregar() { Store.set({ free:{ ...Store.s.free, lista:null, erro:null } }); },
   diaMover(el) { const dia = diaAdd(diaFree(Store.s), Number(el.dataset.d)); if (dia > hojeStr()) return; irParaDia(dia); },
   diaHoje() { irParaDia(hojeStr()); },
+  calDia(el) { irParaDia(el.dataset.dia); window.scrollTo(0, 0); },
+  calMes(el) {
+    const hoje = hojeStr(), m = el.dataset.m; if (m > hoje.slice(0, 7)) return;
+    const [y, mo] = m.split('-').map(Number);
+    irParaDia(m === hoje.slice(0, 7) ? hoje : m + '-' + pad(new Date(y, mo, 0).getDate()));
+  },
   async marcar(el) {
     const F = Store.s.free, dia = diaFree(Store.s), fid = el.dataset.id, st = el.dataset.st, f = F.lista.find(x => x.id === fid); if (!f) return;
     const id = presId(dia, fid), ant = F.pres[id];
