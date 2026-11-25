@@ -97,6 +97,9 @@ label.f>span{display:block;font-size:13px;color:var(--t3);margin-bottom:8px;font
 input,select{width:100%;height:44px;padding:0 12px;background:var(--card2);border:1px solid var(--line2);border-radius:10px;color:var(--t1)}
 input:focus,select:focus{border-color:var(--foco)}
 input::placeholder{color:var(--t4)}
+input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color:var(--link);cursor:pointer}
+.tiposck{display:flex;flex-wrap:wrap;gap:8px}
+.tiposck label{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--card2);font-size:14px;cursor:pointer}
 .hint{font-size:12px;color:var(--t4);margin-top:8px}
 
 /* aviso */
@@ -915,7 +918,7 @@ let fornFiltroTipo = '';
 function tiposCampo(sel) {
   const todos = [...new Set(tiposForn().concat(sel || []))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   return `<fieldset class="f" style="border:0;padding:0;margin:0 0 12px"><legend style="font-size:13px;font-weight:510;margin-bottom:6px">Tipo de produto <span class="muted" style="font-weight:400">· opcional, pode marcar vários</span></legend>
-    <div style="display:flex;flex-wrap:wrap;gap:8px 14px">${todos.map(t => `<label style="display:flex;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="tipoCk" value="${esc(t)}" ${(sel || []).includes(t) ? 'checked' : ''}>${esc(t)}</label>`).join('') || '<span class="muted" style="font-size:13px">Nenhum tipo criado ainda.</span>'}</div>
+    <div class="tiposck">${todos.map(t => `<label><input type="checkbox" name="tipoCk" value="${esc(t)}" ${(sel || []).includes(t) ? 'checked' : ''}>${esc(t)}</label>`).join('') || '<span class="muted" style="font-size:13px">Nenhum tipo criado ainda.</span>'}</div>
     <label class="f" style="margin-top:8px"><span>Novo tipo</span><input name="novoTipo" maxlength="80" placeholder="Ex.: Bebidas, Embalagens" autocomplete="off"></label></fieldset>`;
 }
 function lerTipos(f) {
