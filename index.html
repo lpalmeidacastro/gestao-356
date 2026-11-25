@@ -31,7 +31,7 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --grad-hero:linear-gradient(135deg,#5b1fc4 0%,#9a12b0 45%,#c8133f 100%);
   --nav-on:linear-gradient(90deg,rgba(123,47,247,.22),rgba(240,22,74,.08));
   --link:#c7a6ff; --foco:#c7a6ff;
-  --ok:#3ecf8e; --warn:#ffb547; --err:#ff5c7a;
+  --ok:#3ecf8e; --warn:#ffb547; --lar:#ff9a3d; --amar:#f2d94e; --err:#ff5c7a;
   --titulo:'Russo One',Inter,system-ui,sans-serif;
   --mono:ui-monospace,'SF Mono',Menlo,monospace;
   --ease:cubic-bezier(.2,.8,.2,1);
@@ -43,7 +43,7 @@ var t=document.querySelector('meta[name=theme-color]');if(t)t.setAttribute('cont
   --bg:#f4eee2; --side:#efe7d8; --card:#fbf8f1; --card2:#f7f2e7; --hover:#ede5d5; --track:#e2d9c7;
   --line:rgba(45,35,20,.12); --line2:rgba(45,35,20,.2);
   --t1:#1c1814; --t2:#3d362e; --t3:#5f574c; --t4:#6f665a;
-  --link:#6420d4; --foco:#6420d4; --ok:#0f7a4d; --warn:#955400; --err:#c11340;
+  --link:#6420d4; --foco:#6420d4; --ok:#0f7a4d; --warn:#955400; --lar:#b45309; --amar:#8a6d00; --err:#c11340;
   --pur:#6420d4; --errt:#c11340; --w1:rgba(45,35,20,.04); --w2:rgba(45,35,20,.07); --btnbg:#fbf8f1; --mask:rgba(28,24,20,.45); --navoff:#3d362e;
   --s1:#6a35d9; --s2:#c2650a; --s3:#0e8577; --s4:#b3127a; --s5:#1f6fd1; --s6:#857410; --s7:#d4153f; --s0:#8a8378;
   --nav-on:linear-gradient(90deg,rgba(123,47,247,.16),rgba(240,22,74,.07));
@@ -326,6 +326,32 @@ tbody tr:hover{background:var(--w1)}
 .callg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t3);margin-right:8px}
 .callg .lg{width:10px;height:10px;border-radius:3px;display:inline-block}
 .callg .lg.pg{background:var(--ok)} .callg .lg.ap{background:var(--warn);margin-left:6px}
+.ccwrap{padding:16px 20px 8px}
+.ccal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.ccal .cw{font-size:12px;text-align:center;padding:2px 0}
+.cd2,.ce2{min-height:72px;border-radius:8px}
+.cd2{width:auto;padding:8px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid transparent;background:var(--w1);color:var(--t2);font-family:inherit;cursor:pointer;text-align:left;position:relative}
+.cd2:hover{background:var(--w2)}
+.cd2 .n{font-size:14px;font-weight:590;color:var(--t1)}
+.cd2 .q{position:absolute;top:8px;right:8px;font-size:11px;font-weight:590;min-width:18px;height:18px;border-radius:9px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;background:var(--w2);color:var(--t1)}
+.cd2 .v{font-size:11px;font-weight:510;margin-top:auto;white-space:nowrap}
+.cd2.vm{background:rgba(255,92,122,.16);border-color:rgba(255,92,122,.5)} .cd2.vm .v{color:var(--err)}
+.cd2.vd{background:rgba(62,207,142,.16);border-color:rgba(62,207,142,.45)} .cd2.vd .v{color:var(--ok)}
+.cd2.lj{background:rgba(255,138,31,.18);border-color:rgba(255,138,31,.5)} .cd2.lj .v{color:var(--lar,#b45309)}
+.cd2.am{background:rgba(242,217,78,.16);border-color:rgba(242,217,78,.5)} .cd2.am .v{color:var(--amar,#8a6d00)}
+.cd2.hj .n{text-decoration:underline;text-underline-offset:3px}
+.cd2.sel{box-shadow:0 0 0 2px var(--link)}
+.cclg .lg{width:10px;height:10px;border-radius:3px;display:inline-block;margin-left:6px}
+.cclg .lg:first-child{margin-left:0}
+.cclg .lg.vd{background:var(--ok)} .cclg .lg.lj{background:var(--lar,#b45309)} .cclg .lg.am{background:var(--amar,#8a6d00)} .cclg .lg.vm{background:var(--err)}
+.csum{margin:8px 20px 20px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.csh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;align-items:baseline}
+.csh h4{font-size:15px;font-weight:590;margin:0}
+.cst{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;color:var(--t3)} .cst b{font-weight:590;color:var(--t1);margin-left:4px}
+.csr{display:grid;grid-template-columns:minmax(0,1fr) 110px 90px auto;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.csh+.csr{border-top:0}
+.csr .bval{text-align:right}
+@media (max-width:700px){.ccwrap{padding:12px 12px 4px}.ccal{gap:4px}.cd2,.ce2{min-height:52px}.cd2{padding:6px}.cd2 .v{display:none}.cd2 .q{top:4px;right:4px;min-width:16px;height:16px;font-size:10px}.csum{margin:8px 12px 12px}.csr{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px}.csr .bact{grid-column:1/-1}.cclg{flex-wrap:wrap;margin:0 0 4px;flex:1 0 100%}.ccpanel .dnav{flex-wrap:wrap}}
 .mrow.hd{background:var(--w1);color:var(--t3);font-size:12px;font-weight:510;padding:8px 20px;border-top:0}
 .mrow .mc{text-align:right;color:var(--t1)}
 .mrow .mc.z{color:var(--t3)}
@@ -1167,6 +1193,59 @@ function contasPseudo(s) {
   return r;
 }
 const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'todas' ? 'on' : ''}" data-act="abaConta" data-a="todas">Todas</button><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div></div>`;
+/* calendário de Contas a pagar: um dia = tudo que vence nele; cor pela situação do dia (atrasada manda) */
+function calItens(s, k, aba) {
+  const m0 = mesAtual(); let con = [];
+  const C = k === 'p' ? s.contasP : s.contas;
+  if (C.defs) for (let i = -3; i <= 12; i++) con = con.concat(ocorrencias(C.defs, C.pag, mesAdd(m0, i)));
+  con = con.map(o => ({ ...o, item:'conta' }));
+  if (k === 'p') return con;
+  const bol = (s.boletos.lista || []).map(b => ({ ...b, item:'boleto' }));
+  return aba === 'boletos' ? bol : aba === 'contas' ? con : bol.concat(con);
+}
+const calDe = (s, k) => (k === 'p' ? s.contasP.cal : s.boletos.cal) || {};
+function statusDiaC(its) {
+  if (!its.length) return '';
+  if (its.some(b => sitBoleto(b) === 'vencido')) return 'vm';
+  const pg = its.filter(b => b.pago).length;
+  return pg === its.length ? 'vd' : pg > 0 ? 'lj' : 'am';
+}
+function calContasHTML(its, k, cal) {
+  const hoje = hojeStr(), mesA = mesAtual(), mes = cal.mes || mesA;
+  const dia = cal.dia && cal.dia.slice(0, 7) === mes ? cal.dia : (mes === mesA ? hoje : null);
+  const [y, m] = mes.split('-').map(Number), nd = diasNoMes(mes), off = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const por = {}; its.forEach(b => { if (b.vencimento && b.vencimento.slice(0, 7) === mes) (por[b.vencimento] = por[b.vencimento] || []).push(b); });
+  const rotulo = { vm:'com conta atrasada', vd:'tudo pago', lj:'parcialmente pago', am:'a vencer' };
+  let cel = '<span class="ce2"></span>'.repeat(off);
+  for (let d = 1; d <= nd; d++) {
+    const dt = mes + '-' + pad(d), l = por[dt] || [], st = statusDiaC(l), falta = somaB(l.filter(b => !b.pago));
+    const rot = pad(d) + '/' + pad(m) + (l.length ? ': ' + l.length + (l.length === 1 ? ' conta, ' : ' contas, ') + rotulo[st] + (falta ? ', falta ' + brl(falta) : '') : ': sem contas');
+    cel += `<button class="cd2 ${st} ${dt === hoje ? 'hj' : ''} ${dt === dia ? 'sel' : ''}" data-act="ccDia" data-k="${k}" data-dia="${dt}" aria-label="${rot}" aria-pressed="${dt === dia}">
+      <span class="n">${d}</span>${l.length ? `<span class="q">${l.length}</span><span class="v">${falta ? brl(falta) : '✓'}</span>` : ''}</button>`;
+  }
+  const ant = mesAdd(mes, -1), prox = mesAdd(mes, 1), minOk = ant >= mesAdd(mesA, -3), maxOk = prox <= mesAdd(mesA, 12);
+  const sem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  let resumo = '';
+  if (dia) {
+    const l = (por[dia] || []).slice().sort((a, b) => a.descricao.localeCompare(b.descricao)), tot = somaB(l), pg = somaB(l.filter(b => b.pago)), falta = tot - pg, atr = l.filter(b => sitBoleto(b) === 'vencido').length;
+    const lin = l.map(b => {
+      const st = sitBoleto(b), bol = b.item === 'boleto';
+      const bt = bol ? `<button class="btn ${b.pago ? '' : 'pg'}" data-act="pagar" data-id="${esc(b.id)}">${b.pago ? 'Desfazer' : 'Marcar pago'}</button>`
+        : (b.pago ? `<button class="btn" data-act="contaDesfazer" data-c="${esc(b.contaId)}" data-m="${b.mes}">Desfazer</button>` : `<button class="btn pg" data-act="contaPagar" data-c="${esc(b.contaId)}" data-m="${b.mes}">Marcar pago</button>`);
+      return `<div class="csr"><div class="bnome"><b title="${esc(b.descricao)}">${esc(b.descricao)}</b><span>${k === 'p' ? '' : esc(nomeSetor(b.setor)) + fornTxt(b) + ' · '}${bol ? 'boleto' : 'conta'} · ${esc(quandoTxt(b))}</span></div>
+        <div class="bval">${brl(b.valor)}</div><div>${badgeSit(st)}</div><div class="bact">${bt}</div></div>`;
+    }).join('');
+    resumo = `<div class="csum" aria-live="polite"><div class="csh"><h4>${dia === hoje ? 'Hoje, ' : ''}${esc(diaLabel(dia))}</h4>
+      <div class="cst"><span>Total <b>${brl(tot)}</b></span><span>Pago <b style="color:var(--ok)">${brl(pg)}</b></span><span>Falta pagar <b style="color:${atr ? 'var(--err)' : falta ? 'var(--warn)' : 'var(--t2)'}">${brl(falta)}</b></span>${atr ? `<span style="color:var(--err)">${atr} ${atr === 1 ? 'atrasada' : 'atrasadas'}</span>` : ''}</div></div>
+      ${lin || '<div class="pb" style="padding:20px;color:var(--t3);font-size:14px">Nenhuma conta vence neste dia.</div>'}</div>`;
+  } else resumo = `<div class="csum"><div class="pb" style="padding:20px;color:var(--t3);font-size:14px">Toque num dia para ver o que vence, o que está pago e o que falta pagar.</div></div>`;
+  return `<section class="panel ccpanel" style="margin:0"><div class="ph2"><h3>Calendário de ${esc(mesNome(mes, true).toLowerCase())}</h3>
+    <div class="dnav"><span class="callg cclg"><span class="lg vd"></span>Pago <span class="lg lj"></span>Parcial <span class="lg am"></span>A vencer <span class="lg vm"></span>Atrasada</span>
+      <button class="ib" data-act="ccMes" data-k="${k}" data-m="${ant}" aria-label="Mês anterior" ${minOk ? '' : 'disabled style="opacity:.35;cursor:default"'}>${ico('esq')}</button>
+      <button class="ib" data-act="ccMes" data-k="${k}" data-m="${prox}" aria-label="Próximo mês" ${maxOk ? '' : 'disabled style="opacity:.35;cursor:default"'}>${ico('dir')}</button></div></div>
+    <div class="ccwrap"><div class="ccal">${sem.map(w => `<span class="cw">${w}</span>`).join('')}${cel}</div></div>${resumo}</section>`;
+}
+
 function contasHTML(s, emb) {
   const K = emb ? 'contasP' : 'contas', C = s[K], mes = C.mes;
   const head = emb ? '' : `<div class="ph"><div><div class="ctx">Hoje é ${dataBRfull(hojeStr())} · todos os setores</div><h1>Contas a pagar</h1></div>
@@ -1195,6 +1274,7 @@ function contasHTML(s, emb) {
   const vazio = C.defs.length ? 'Nenhuma conta neste mês.' : emb ? 'Nenhuma conta a pagar ainda. Use "+ Nova conta" (cartão, financiamento, escola, condomínio...).' : 'Nenhuma conta agendada ainda. Use "+ Nova conta agendada" (luz, água, internet, aluguel...).';
   const corpo = `${nav}
     <section aria-label="Resumo" class="rcards">${cards}</section>
+    ${calContasHTML(calItens(s, emb ? 'p' : 'e', 'contas'), emb ? 'p' : 'e', calDe(s, emb ? 'p' : 'e'))}
     <section class="panel" style="margin:0"><div class="ph2"><h3>Contas de ${esc(mesNome(mes, true))}</h3></div>
       <div role="table"><div class="brow hd" role="row"><span>Conta</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
       ${rows || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazio}</div>`}</div></section>`;
@@ -1242,6 +1322,7 @@ function todasHTML(s) {
   }).join('');
   return head + erro + `<div class="stack">
     <section aria-label="Resumo" class="rcards">${cards}</section>
+    ${calContasHTML(calItens(s, 'e', 'todas'), 'e', calDe(s, 'e'))}
     <section class="panel" style="margin:0">
       <div class="ph2"><h3>${titulos[f]}</h3><div class="chips" role="group" aria-label="Filtro">${filtros.map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}">${n}</button>`).join('')}</div></div>
       <div role="table"><div class="brow hd" role="row"><span>Conta</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
@@ -1388,6 +1469,7 @@ function boletosHTML(s) {
   }).join('');
   return head + erro + `<div class="stack">
     <section aria-label="Resumo" class="rcards">${cards}</section>
+    ${calContasHTML(calItens(s, 'e', 'boletos'), 'e', calDe(s, 'e'))}
     <section class="panel" style="margin:0">
       <div class="ph2"><h3>${titulos[f]}</h3><div class="chips" role="group" aria-label="Filtro">${filtros.map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="filtroBoleto" data-f="${id}">${n}</button>`).join('')}</div></div>
       <div role="table"><div class="brow hd" role="row"><span>Boleto</span><span>Vencimento</span><span style="text-align:right">Valor</span><span>Situação</span><span></span></div>
@@ -1613,7 +1695,7 @@ function freelancersHTML(s) {
       <div role="table">${linhas || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazioDia}</div>`}</div></section>
     <section class="panel" style="margin:0"><div class="ph2"><h3>Resumo de ${esc(mesNome(mes, true).toLowerCase())}</h3><span class="muted" style="font-size:13px">Total ${brl(tt.tot)} · pago ${brl(tt.pg)} · a pagar <b style="color:${tt.ab ? 'var(--warn)' : 'var(--t1)'}">${brl(tt.ab)}</b></span></div>
       <div role="table"><div class="mrow hd" role="row"><span>Freelancer</span><span style="text-align:right">Dias</span><span style="text-align:right">Faltas</span><span style="text-align:right">Total</span><span style="text-align:right">Pago</span><span style="text-align:right">A pagar</span><span></span></div>
-      ${mRows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Sem presenças neste mês.</div>`}</div></section></div>${calendarioHTML(F, mes, hoje, mesRows)}</div>`;
+      ${mRows || `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">Sem presenças neste mês.</div>`}</div></section>${calendarioHTML(F, mes, hoje, mesRows)}</div>`;
 }
 
 function freelancersCard(s) {
@@ -2916,6 +2998,14 @@ const acoes = {
   freeRecarregar() { Store.set({ free:{ ...Store.s.free, lista:null, erro:null } }); },
   diaMover(el) { const dia = diaAdd(diaFree(Store.s), Number(el.dataset.d)); if (dia > hojeStr()) return; irParaDia(dia); },
   diaHoje() { irParaDia(hojeStr()); },
+  ccMes(el) {
+    const k = el.dataset.k, m = el.dataset.m, a = mesAtual(); if (m < mesAdd(a, -3) || m > mesAdd(a, 12)) return;
+    if (k === 'p') Store.set({ contasP:{ ...Store.s.contasP, cal:{ mes:m, dia:null } } }); else Store.set({ boletos:{ ...Store.s.boletos, cal:{ mes:m, dia:null } } });
+  },
+  ccDia(el) {
+    const k = el.dataset.k, c = { ...calDe(Store.s, k), dia:el.dataset.dia };
+    if (k === 'p') Store.set({ contasP:{ ...Store.s.contasP, cal:c } }); else Store.set({ boletos:{ ...Store.s.boletos, cal:c } });
+  },
   calDia(el) { irParaDia(el.dataset.dia); window.scrollTo(0, 0); },
   calMes(el) {
     const hoje = hojeStr(), m = el.dataset.m; if (m > hoje.slice(0, 7)) return;
