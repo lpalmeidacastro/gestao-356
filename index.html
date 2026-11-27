@@ -122,6 +122,10 @@ input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color
 .ckl{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:14px;color:var(--t2)}
 .ckl input[type=checkbox]{width:22px;height:22px}
 .ckl b{color:var(--t1);font-weight:510}
+.lgrupo{padding:10px 20px;font-size:12px;font-weight:590;letter-spacing:.02em;color:var(--t2);background:var(--w1);border-top:1px solid var(--line)}
+.dhr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fset{border:0;padding:0;margin:0 0 12px}.fset legend{font-size:13px;font-weight:510;color:var(--t2);margin-bottom:2px}
+.ckl input[type=radio]{width:20px;height:20px;flex:0 0 auto;accent-color:var(--link)}
 .bdif{display:block;font-size:12px;color:var(--t3);font-weight:400;line-height:1.4}
 @media (max-width:700px){.bdif{max-width:120px;margin-left:auto;text-align:right}}
 @media (max-width:700px){.pitem{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px}.pi-t{grid-column:1/3}.conf{grid-template-columns:minmax(0,1fr) 96px}}
@@ -556,7 +560,7 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
-const APP_VERSAO = 'g356-v38'; // igual ao VERSAO do sw.js (o teste confere)
+const APP_VERSAO = 'g356-v39'; // igual ao VERSAO do sw.js (o teste confere)
 
 /* ============ rede lenta e sem internet ============ */
 // 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
@@ -699,6 +703,7 @@ const ICON = {
   relatorios:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   empresa:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>',
   pessoal:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  sino:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   equipe:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/>',
   diag:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
   sair:'<path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9"/>',
@@ -750,9 +755,9 @@ function avisosBox() {
   let msg, btn = '';
   if (!('Notification' in window)) msg = 'Este aparelho não aceita avisos. No iPhone, instale o app na tela inicial primeiro.';
   else if (Notification.permission === 'denied') msg = 'Avisos bloqueados neste aparelho. Libere nas configurações do navegador para este site.';
-  else if (avisosOn()) msg = 'Ativados. Todo dia às 9h você recebe as contas e boletos que vencem no dia.';
-  else { msg = 'Receba às 9h um aviso com as contas e boletos que vencem no dia.'; btn = `<button class="btn" data-act="avisosAtivar">Ativar avisos neste aparelho</button>`; }
-  return `<div class="avisos"><span style="font-size:12px;color:var(--t3)">Avisos das 9h</span><p>${msg}</p>${btn}</div>`;
+  else if (avisosOn()) msg = 'Ativados. Você recebe os seus lembretes e, às 9h, as contas e boletos que vencem no dia.';
+  else { msg = 'Receba no celular os seus lembretes e, às 9h, as contas e boletos que vencem no dia.'; btn = `<button class="btn" data-act="avisosAtivar">Ativar avisos neste aparelho</button>`; }
+  return `<div class="avisos"><span style="font-size:12px;color:var(--t3)">Avisos no celular</span><p>${msg}</p>${btn}</div>`;
 }
 async function ativarAvisos() {
   if (!avisosOk()) return aviso('Este navegador não aceita avisos. No iPhone, instale o app na tela inicial e abra por lá.');
@@ -774,7 +779,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, ped:{ forn:'', pedidos:null, prods:null, pags:null, erro:null }, catemp:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, ped:{ forn:'', pedidos:null, prods:null, pags:null, erro:null }, lemb:{ lista:null, membros:null, filtro:'agenda', erro:null }, catemp:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -2562,6 +2567,136 @@ async function salvarPagForn(f, d) {
     depoisDePagar(); fecharModal(); Store.set({ ped:{ ...S, forn:forn.id, pags, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
+/* ============ lembretes (compromissos com aviso no celular) ============ */
+// empresas/356/lembretes/{id} (todos veem) e pessoal/356/lembretes/{id} (só Luiz e Eliana):
+//   titulo, notas, data (AAAA-MM-DD), hora (HH:MM), quando (ms, horário de Brasília), antes (minutos antes; null = sem aviso),
+//   proxAviso (ms; null = nada a avisar; a função do servidor manda o aviso e zera), para [uids], som, vibrar, fixo,
+//   seNao ('fica' = continua nos dias seguintes até concluir | 'some' = some depois do dia), concluido, concluidoEm, criadoPorUid, criadoEm
+// empresas/356/membros/{uid}: nome, papel, pes (pode receber lembrete pessoal). Cada pessoa grava o seu ao abrir os Lembretes.
+const colLemb = pes => db.collection(`${pes ? 'pessoal' : 'empresas'}/${EMPRESA}/lembretes`);
+const colMembros = () => db.collection(`empresas/${EMPRESA}/membros`);
+const ANTES = [['', 'Sem aviso'], ['0', 'Na hora'], ['5', '5 minutos antes'], ['10', '10 minutos antes'], ['15', '15 minutos antes'], ['30', '30 minutos antes'], ['60', '1 hora antes'], ['120', '2 horas antes'], ['1440', '1 dia antes'], ['2880', '2 dias antes'], ['10080', '1 semana antes']];
+const antesNome = a => a == null ? 'sem aviso' : (ANTES.find(x => x[0] === String(a)) || [0, a + ' min antes'])[1].toLowerCase();
+const quandoMs = (data, hora) => Date.parse(`${data}T${hora}:00-03:00`); // Brasília não tem mais horário de verão
+const proxAvisoDe = (quando, antes, concluido) => (concluido || antes == null || !(quando > Date.now())) ? null : quando - antes * 60000;
+let lembBusca = false;
+async function carregarLembretes() {
+  if (lembBusca || Store.s.lemb.lista) return;
+  lembBusca = true;
+  try {
+    const dono = ehDonoPes();
+    const [a, b, m] = await Promise.all([colLemb(false).get(), dono ? colLemb(true).get() : Promise.resolve({ docs:[] }), colMembros().get()]);
+    const lista = a.docs.map(d => ({ id:d.id, ...d.data(), pessoal:false })).concat(b.docs.map(d => ({ id:d.id, ...d.data(), pessoal:true })));
+    let membros = m.docs.map(d => ({ uid:d.id, ...d.data() }));
+    const u = Store.s.user, eu = { nome:Store.s.perfil.nome || u.email, papel:Store.s.perfil.papel, pes:dono }, meu = membros.find(x => x.uid === u.uid);
+    if (!meu || meu.nome !== eu.nome || !!meu.pes !== eu.pes || meu.papel !== eu.papel) {
+      colMembros().doc(u.uid).set(eu, { merge:true }).catch(e => console.error(e));
+      membros = membros.filter(x => x.uid !== u.uid).concat([{ uid:u.uid, ...eu }]);
+    }
+    Store.set({ lemb:{ ...Store.s.lemb, lista, membros, erro:null } });
+  } catch (e) { console.error(e); Store.set({ lemb:{ ...Store.s.lemb, lista:Store.s.lemb.lista || [], membros:Store.s.lemb.membros || [], erro:'Não foi possível carregar os lembretes. ' + msgErro(e) } }); }
+  finally { lembBusca = false; }
+}
+// o que aparece na agenda: hoje (inclusive os concluídos hoje), futuros abertos e atrasados que "ficam"
+function lembNaAgenda(x, hoje) {
+  if (x.data === hoje) return true;
+  if (x.concluido) return false;
+  return x.data > hoje || x.seNao !== 'some';
+}
+const ordLemb = (a, b) => (a.data || '').localeCompare(b.data || '') || (a.hora || '').localeCompare(b.hora || '') || (a.titulo || '').localeCompare(b.titulo || '');
+function diaTitulo(d, hoje) {
+  if (d === hoje) return 'Hoje';
+  if (d === dataAdd(hoje, 1)) return 'Amanhã';
+  const dt = new Date(d + 'T12:00:00');
+  const s = dt.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+const dataAdd = (iso, n) => { const [y, m, d] = iso.split('-').map(Number), x = new Date(y, m - 1, d + n); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); };
+function lembretesHTML(s) {
+  const S = s.lemb, hoje = hojeStr();
+  const head = `<div class="ph"><div><div class="ctx">Controle · cada lembrete avisa no celular de quem você escolher</div><h1>Lembretes</h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" data-act="lembNovo">+ Novo lembrete</button></div></div>`;
+  const erro = S.erro ? `<div class="alert err on" role="alert">${esc(S.erro)} <button class="btn ghost" data-act="lembRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  const avisoAparelho = !avisosOn() ? `<div class="box" style="margin-bottom:16px">${avisosBox()}</div>` : '';
+  if (S.lista === null) return head + `<div class="stack"><div class="skbox" style="height:160px"></div></div>`;
+  const L = S.lista, f = S.filtro;
+  const atras = L.filter(x => !x.concluido && x.data < hoje && x.seNao !== 'some'), deHoje = L.filter(x => x.data === hoje);
+  const prox7 = L.filter(x => !x.concluido && x.data > hoje && x.data <= dataAdd(hoje, 7));
+  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  const cards = `<div class="rcards">${card('var(--pur)', 'Hoje', deHoje.filter(x => !x.concluido).length, 'a fazer hoje')}${card('var(--err)', 'Atrasados', atras.length, 'continuam até concluir')}${card('var(--warn)', 'Próximos 7 dias', prox7.length, 'agendados')}${card('var(--ok)', 'Concluídos hoje', deHoje.filter(x => x.concluido).length, 'feitos hoje')}</div>`;
+  const lista = (f === 'concluidos' ? L.filter(x => x.concluido).sort((a, b) => ordLemb(b, a)) : f === 'todos' ? L.slice().sort(ordLemb) : L.filter(x => lembNaAgenda(x, hoje)).sort(ordLemb));
+  const nomeDe = uid => { const m = (S.membros || []).find(x => x.uid === uid); return uid === s.user.uid ? 'mim' : m ? m.nome.split(/\s+/)[0] : 'outra pessoa'; };
+  const linha = x => {
+    const atrasado = !x.concluido && x.data < hoje;
+    const sub = [antesNome(x.antes) === 'sem aviso' ? 'sem aviso' : 'aviso ' + antesNome(x.antes), 'para ' + (x.para || []).map(nomeDe).join(', '), x.notas || ''].filter(Boolean).join(' · ');
+    const selo = x.concluido ? '<span class="badge ok">Concluído</span>' : atrasado ? '<span class="badge err">Atrasado</span>' : '<span class="badge">A fazer</span>';
+    return `<div class="brow" role="row">
+      <div class="bnome"><b style="${x.concluido ? 'text-decoration:line-through;color:var(--t3)' : ''}">${esc(x.titulo)}${x.pessoal ? ' <span class="badge ind" style="vertical-align:2px">Pessoal</span>' : ''}</b><span title="${esc(sub)}">${esc(sub)}</span></div>
+      <div class="bven">${esc(x.hora || '')}<span style="display:block">${dataBR(x.data)}</span></div><div class="bval">${x.som === false ? 'sem som' : 'som'}${x.vibrar === false ? '' : ' · vibra'}</div><div class="bst">${selo}</div>
+      <div class="bact"><button class="btn ${x.concluido ? '' : 'pg'}" data-act="lembFeito" data-id="${esc(x.id)}" style="height:44px">${x.concluido ? 'Reabrir' : 'Concluir'}</button>
+        <button class="ib" data-act="lembEditar" data-id="${esc(x.id)}" aria-label="Editar lembrete">${ico('edit')}</button></div></div>`;
+  };
+  let corpo = '';
+  if (f === 'agenda') {
+    const grupos = [];
+    lista.forEach(x => { const g = !x.concluido && x.data < hoje ? 'Atrasados' : diaTitulo(x.data, hoje); const u = grupos[grupos.length - 1]; if (u && u.t === g) u.l.push(x); else grupos.push({ t:g, l:[x] }); });
+    corpo = grupos.map(g => `<div class="lgrupo">${esc(g.t)}</div>${g.l.map(linha).join('')}`).join('');
+  } else corpo = lista.map(linha).join('');
+  const chips = [['agenda', 'Agenda'], ['concluidos', 'Concluídos'], ['todos', 'Todos']].map(([id, n]) => `<button class="chip ${f === id ? 'on' : ''}" data-act="lembFiltro" data-f="${id}">${n}</button>`).join('');
+  const vazioT = f === 'concluidos' ? 'Nenhum lembrete concluído ainda.' : 'Nada na agenda. Use "+ Novo lembrete".';
+  return head + erro + avisoAparelho + `<div class="stack">${cards}
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Lembretes</h3><div class="chips" role="group" aria-label="Filtro">${chips}</div></div><div role="table" style="--act:150px">
+      <div class="brow hd" role="row"><span>Lembrete</span><span>Hora</span><span>Alerta</span><span>Situação</span><span></span></div>
+      ${corpo || `<div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">${vazioT}</div>`}</div></section></div>`;
+}
+function formLemb(x) {
+  const S = Store.s.lemb, eu = Store.s.user.uid, dono = ehDonoPes(), admin = Store.s.perfil.papel === 'admin', pes = !!(x && x.pessoal);
+  const membros = (S.membros || []).slice().sort((a, b) => (a.uid === eu ? -1 : b.uid === eu ? 1 : (a.nome || '').localeCompare(b.nome || '')));
+  const para = x ? (x.para || []) : [eu];
+  const ck = (name, v, on, txt) => `<label class="ckl"><input type="checkbox" name="${name}" ${v != null ? `value="${esc(v)}"` : ''} ${on ? 'checked' : ''}>${txt}</label>`;
+  const antes = x ? (x.antes == null ? '' : String(x.antes)) : '15';
+  return `<form data-form="lembrete" data-id="${x ? esc(x.id) : ''}" data-pes="${pes ? '1' : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>O que é</span><input name="titulo" value="${x ? esc(x.titulo) : ''}" maxlength="100" placeholder="Ex.: Reunião com fornecedor, pagar o contador" autocomplete="off"></label>
+    <div class="dhr"><label class="f"><span>Data</span><input name="data" type="date" value="${x ? esc(x.data) : hojeStr()}"></label>
+    <label class="f"><span>Hora</span><input name="hora" type="time" value="${x ? esc(x.hora) : ''}"></label></div>
+    <label class="f"><span>Avisar no celular</span><select name="antes">${ANTES.map(([v, n]) => `<option value="${v}" ${antes === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    ${dono && !x ? ck('pessoal', null, false, 'Pessoal (só eu e a Eliana vemos)') : ''}
+    <fieldset class="fset"><legend>Quem recebe o aviso</legend>${membros.map(m => `<div class="${pes && !m.pes ? 'hide' : ''}" data-membro data-pes="${m.pes ? '1' : ''}">${ck('para', m.uid, para.includes(m.uid), esc(m.uid === eu ? 'Eu (' + m.nome + ')' : m.nome))}</div>`).join('')}</fieldset>
+    <fieldset class="fset"><legend>Como avisar</legend>${ck('som', null, x ? x.som !== false : true, 'Tocar som')}${ck('vibrar', null, x ? x.vibrar !== false : true, 'Vibrar')}${ck('fixo', null, x ? !!x.fixo : false, 'Deixar o aviso na tela até eu tocar')}</fieldset>
+    <fieldset class="fset"><legend>Se não for concluído no dia</legend>
+      <label class="ckl"><input type="radio" name="seNao" value="fica" ${!x || x.seNao !== 'some' ? 'checked' : ''}>Continua nos dias seguintes como atrasado, até eu concluir</label>
+      <label class="ckl"><input type="radio" name="seNao" value="some" ${x && x.seNao === 'some' ? 'checked' : ''}>Some da agenda depois do dia</label></fieldset>
+    <label class="f"><span>Anotações (opcional)</span><input name="notas" value="${x ? esc(x.notas || '') : ''}" maxlength="200" placeholder="Ex.: levar a lista de preços" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${x ? 'Salvar alterações' : 'Salvar lembrete'}</button>
+    ${x && (admin || x.pessoal) ? `<button type="button" class="btn bad full" data-act="lembApagar" data-id="${esc(x.id)}">Apagar lembrete</button>` : ''}</div></form>`;
+}
+async function salvarLemb(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; av.scrollIntoView({ block:'nearest' }); };
+  const titulo = (d.titulo || '').trim(), data = d.data || '', hora = d.hora || '';
+  if (!titulo) return erro('Escreva o que é o lembrete (o título).');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data.');
+  if (!/^\d{2}:\d{2}$/.test(hora)) return erro('Escolha a hora. Exemplo: 14:30');
+  const id = f.dataset.id, S = Store.s.lemb, velho = id ? (S.lista || []).find(x => x.id === id) : null;
+  const pes = velho ? !!velho.pessoal : (ehDonoPes() && !!f.querySelector('[name=pessoal]:checked'));
+  const podeReceber = uid => { const m = (S.membros || []).find(x => x.uid === uid); return !!m && (!pes || m.pes); };
+  const para = Array.from(f.querySelectorAll('[name=para]:checked')).map(i => i.value).filter(podeReceber);
+  const antes = d.antes === '' || d.antes == null ? null : Number(d.antes);
+  if (antes != null && !para.length) return erro('Marque quem recebe o aviso, ou escolha "Sem aviso".');
+  const quando = quandoMs(data, hora); if (!isFinite(quando)) return erro('Data ou hora inválida.');
+  const concluido = velho ? !!velho.concluido : false;
+  const mud = { titulo, notas:(d.notas || '').trim(), data, hora, quando, antes, proxAviso:proxAvisoDe(quando, antes, concluido), para,
+    som:!!f.querySelector('[name=som]:checked'), vibrar:!!f.querySelector('[name=vibrar]:checked'), fixo:!!f.querySelector('[name=fixo]:checked'), seNao:d.seNao === 'some' ? 'some' : 'fica' };
+  btn.disabled = true;
+  try {
+    let lista = S.lista || [];
+    if (id) { await colLemb(pes).doc(id).update(mud); lista = lista.map(x => x.id === id ? { ...x, ...mud } : x); }
+    else { const ref = colLemb(pes).doc(), novo = { ...mud, concluido:false, concluidoEm:null, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(novo); lista = lista.concat([{ id:ref.id, ...novo, criadoEm:null, pessoal:pes }]); }
+    fecharModal(); Store.set({ lemb:{ ...Store.s.lemb, lista, erro:null } });
+    if (mud.proxAviso && !avisosOn()) aviso('Lembrete salvo. Para receber o aviso neste aparelho, toque em "Ativar avisos neste aparelho".', 'ok');
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
 function tarefasCard(s) {
   const T = s.tar, hoje = hojeStr();
   const cab = `<div class="bh" style="margin-bottom:16px"><h2>Tarefas de hoje</h2></div>`;
@@ -3102,6 +3237,7 @@ function rotasDoPerfil(s) {
   r.push({ id:'empresa', nome:'Empresa', ic:'empresa', grp:'Setores' });
   if (adm) r.push({ id:'pessoal', nome:'Pessoal', ic:'pessoal', grp:'Setores' });
   r.push({ id:'boletos', nome:'Contas a pagar', ic:'boletos', grp:'Controle' });
+  r.push({ id:'lembretes', nome:'Lembretes', ic:'sino', grp:'Controle' });
   r.push({ id:'freelancers', nome:'Freelancers', ic:'freelancers', grp:'Controle' });
   r.push({ id:'energia', nome:'Energia solar', ic:'energia', grp:'Controle' });
   r.push({ id:'relatorios', nome:'Relatórios', ic:'relatorios', grp:'Controle' });
@@ -3135,7 +3271,7 @@ V.app = s => {
     + tab('setores', 'Setores', 'empresa', ehSetor || atual.id === 'setores')
     + tab('boletos', 'Contas', 'boletos', atual.id === 'boletos')
     + tab('freelancers', 'Presença', 'freelancers', atual.id === 'freelancers')
-    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['energia','relatorios','equipe','diag'].includes(atual.id));
+    + tab('mais', 'Mais', 'mais', atual.id === 'mais' || ['lembretes','energia','relatorios','equipe','diag'].includes(atual.id));
   return `
 <div class="app">
   <aside class="side">
@@ -3264,7 +3400,7 @@ function page(id, s, nomeCurto) {
     <a class="box hov setc" href="#/${x.id}"><div class="t"><b>${ico(x.id)} ${esc(x.nome)}</b><span class="badge ind">Abrir</span></div></a>`).join('')}</div>`;
   }
   if (id === 'mais') {
-    const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','equipe','diag'].includes(r.id));
+    const rotas = rotasDoPerfil(s).filter(r => ['lembretes','energia','relatorios','equipe','diag'].includes(r.id));
     return cab('Mais') + `<div class="box"><div class="lista">${rotas.map(r => `<a href="#/${r.id}">${ico(r.ic)}${esc(r.nome)}</a>`).join('')}
       <a href="#/mais" data-act="sair">${ico('sair')}Sair</a></div></div>
       <div class="box" style="margin-top:16px">${avisosBox()}</div>${copiaBox()}
@@ -3273,6 +3409,7 @@ function page(id, s, nomeCurto) {
   if (id === 'empresa') return setorHTML(s, SETORES.find(x => x.id === s.emp.sub) || { id:'todos', nome:'Empresa' });
   if (id === 'boletos') return boletosHTML(s);
   if (id === 'energia') return energiaHTML(s);
+  if (id === 'lembretes') return lembretesHTML(s);
   if (id === 'freelancers') return freelancersHTML(s);
   if (id === 'relatorios') return relatoriosHTML(s);
   if (id === 'pessoal') return pessoalHTML(s);
@@ -3294,6 +3431,7 @@ async function aposPagina(id, s) {
   if (id === 'painel') { carregarPainel(); carregarMetas(); carregarVendasMes(); return; }
   if (id === 'empresa') { carregarLanc(); carregarEstoque(); carregarMetas(); carregarVendasMes(); return; }
   if (id === 'energia') { carregarEnergia(); return; }
+  if (id === 'lembretes') { carregarLembretes(); return; }
   if (id === 'relatorios') { carregarRel(); return; }
   if (id === 'pessoal') { carregarPes(); carregarGastosPes(Store.s.pes.mes); if (Store.s.contasP.defs === null) carregarContas(false, 'contasP'); return; }
   if (id === 'equipe') {
@@ -3348,8 +3486,8 @@ V.rapido = (s, etapa) => {
 
 /* ============ cópia completa (baixar no aparelho) ============ */
 // Terceira cópia dos dados, nas mãos do dono: um arquivo com TUDO (empresa e, para Luiz/Eliana, o pessoal).
-const COLS_EMP = ['subsetores','vendasMes','categorias','fornecedores','produtos','lancamentos','comprovantes','metas','tarefas','energia','boletos','contas','contasPag','freelancers','presencas','pedidos','fornProdutos','jornal'];
-const COLS_PES = ['movimentos','anexos','categorias','contas','contasPag','jornal'];
+const COLS_EMP = ['subsetores','vendasMes','categorias','fornecedores','produtos','lancamentos','comprovantes','metas','tarefas','energia','boletos','contas','contasPag','freelancers','presencas','pedidos','fornProdutos','lembretes','membros','jornal'];
+const COLS_PES = ['movimentos','anexos','categorias','contas','contasPag','lembretes','jornal'];
 function paraJSON(v, d = 0) {
   if (v === null || typeof v !== 'object' || d > 20) return v;
   if (typeof v.toDate === 'function') { try { return { __data:v.toDate().toISOString() }; } catch (e) { return null; } }
@@ -3692,6 +3830,27 @@ const acoes = {
   vendaMes(el) { abrirModal('Venda do mês', formVendaMes(el.dataset.mes || mesAtual())); },
   tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor || subAtualId())); },
   tarEditar(el) { const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (x) abrirModal('Editar tarefa', formTar(x)); },
+  lembNovo() { if (!Store.s.lemb.membros) return; abrirModal('Novo lembrete', formLemb(null)); },
+  lembEditar(el) { const x = (Store.s.lemb.lista || []).find(y => y.id === el.dataset.id); if (x) abrirModal('Editar lembrete', formLemb(x)); },
+  lembFiltro(el) { Store.set({ lemb:{ ...Store.s.lemb, filtro:el.dataset.f } }); },
+  lembRecarregar() { Store.set({ lemb:{ ...Store.s.lemb, lista:null, erro:null } }); },
+  async lembFeito(el) {
+    const S = Store.s.lemb, x = (S.lista || []).find(y => y.id === el.dataset.id); if (!x) return;
+    const concluido = !x.concluido, mud = { concluido, concluidoEm:concluido ? hojeStr() : null, proxAviso:proxAvisoDe(x.quando, x.antes, concluido) };
+    Store.set({ lemb:{ ...S, erro:null, lista:S.lista.map(y => y.id === x.id ? { ...y, ...mud } : y) } });
+    try { await colLemb(x.pessoal).doc(x.id).update(mud); }
+    catch (e) { const G = Store.s.lemb; Store.set({ lemb:{ ...G, erro:'Não foi possível salvar. Voltou ao estado anterior. ' + msgErro(e), lista:G.lista.map(y => y.id === x.id ? x : y) } }); }
+  },
+  lembApagar(el) {
+    const x = (Store.s.lemb.lista || []).find(y => y.id === el.dataset.id); if (!x) return;
+    abrirModal('Apagar lembrete', `<p style="font-size:14px;margin-bottom:16px">Apagar o lembrete <b style="color:var(--t1)">${esc(x.titulo)}</b>? Fica guardado no histórico.</p>
+      <div class="acoes"><button class="btn bad full" data-act="lembApagarOk" data-id="${esc(x.id)}">Apagar lembrete</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async lembApagarOk(el) {
+    const S = Store.s.lemb, x = (S.lista || []).find(y => y.id === el.dataset.id); if (!x) return;
+    try { await colLemb(x.pessoal).doc(x.id).delete(); fecharModal(); Store.set({ lemb:{ ...S, lista:S.lista.filter(y => y.id !== x.id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ lemb:{ ...S, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
   pedAbrir(el) { Store.set({ ped:{ ...Store.s.ped, forn:el.dataset.id } }); window.scrollTo(0, 0); },
   pedRecarregar() { pedRecarregar(); Store.set({ ped:{ ...Store.s.ped, erro:null } }); },
   pedNovo() { if (!(Store.s.forn.lista || []).length) { fornFiltroTipo = ''; abrirModal('Fornecedores', fornModalHTML()); return; } abrirModal('Novo pedido', formPedido(null)); },
@@ -3923,6 +4082,7 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'vendaMes') { await salvarVendaMes(f, d); return; }
   if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
   if (f.dataset.form === 'pedido') { await salvarPedido(f, d); return; }
+  if (f.dataset.form === 'lembrete') { await salvarLemb(f, d); return; }
   if (f.dataset.form === 'pedEntrega') { await salvarEntrega(f, d); return; }
   if (f.dataset.form === 'pedPag') { await salvarPagForn(f, d); return; }
   if (f.dataset.form === 'fornProd') { await salvarFornProd(f, d); return; }
@@ -3939,6 +4099,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('input', e => { const f = e.target.closest && e.target.closest('form[data-form=pedido]'); if (f && e.target.dataset.k) recalcPed(f); });
 document.addEventListener('change', e => {
   const t = e.target;
+  if (t && t.name === 'pessoal' && t.closest('form[data-form=lembrete]')) { t.closest('form').querySelectorAll('[data-membro]').forEach(m => { const fora = t.checked && !m.dataset.pes; m.classList.toggle('hide', fora); if (fora) m.querySelector('input').checked = false; }); return; }
   if (t && t.id === 'pedForn') { Store.set({ ped:{ ...Store.s.ped, forn:t.value } }); return; }
   const f = t && t.closest ? t.closest('form[data-form=pedido]') : null; if (!f) return;
   if (t.name === 'fornecedorId') { f.querySelector('[data-itens]').innerHTML = itemPedHTML(t.value, null, null); recalcPed(f); return; }

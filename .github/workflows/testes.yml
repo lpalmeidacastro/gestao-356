@@ -30,5 +30,7 @@ jobs:
           node --check /tmp/app.js
       - name: Backup (trancar, abrir, guardar)
         run: node testes/backup.test.mjs
+      - name: Regras dos avisos dos Lembretes
+        run: node testes/lembretes.test.mjs
       - name: Testes do app no Chrome
         run: bash testes/suite.sh

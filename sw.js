@@ -3,7 +3,7 @@
 //  - arquivos do app: guardados na instalação e servidos do aparelho (a versão nova chega com um sw.js novo);
 //  - Firebase e fontes (versão fixa, não mudam): guardados na primeira vez e servidos do aparelho.
 // REGRA: a cada envio do index.html, trocar VERSAO aqui e APP_VERSAO no index.html (o teste confere).
-const VERSAO = 'g356-v38';
+const VERSAO = 'g356-v39';
 const EXT = 'g356-ext-1'; // bibliotecas externas com versão fixa
 const ARQUIVOS = ['./', './index.html', './manifest.json', './manifest-lancar.json', './icon-lancar-180.png', './icon-lancar-192.png', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
 const EXTERNOS = [
@@ -59,9 +59,11 @@ self.addEventListener('push', e => {
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = {}; }
   const m = d.data || d.notification || d;
   const titulo = m.titulo || m.title || 'Gestão 356';
-  e.waitUntil(self.registration.showNotification(titulo, {
-    body: m.corpo || m.body || '', icon: './icon-192.png', badge: './icon-192.png', tag: 'g356-9h', renotify: true, data: { url: './#/boletos' }
-  }));
+  // lembretes mandam: tag (um por lembrete), url, som ('0' = sem som), vibrar ('0' = sem vibrar), fixo ('1' = fica na tela até tocar)
+  const opc = { body: m.corpo || m.body || '', icon: './icon-192.png', badge: './icon-192.png', tag: m.tag || 'g356-9h', renotify: true,
+    data: { url: m.url || './#/boletos' }, silent: m.som === '0', requireInteraction: m.fixo === '1', timestamp: Date.now() };
+  if (m.vibrar !== '0') opc.vibrate = [300, 120, 300, 120, 300];
+  e.waitUntil(self.registration.showNotification(titulo, opc));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
