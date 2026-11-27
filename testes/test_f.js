@@ -1,0 +1,42 @@
+(async()=>{try{
+  await wait(900);
+  location.hash='#/empresa'; await wait(700);
+  let t=txt();
+  T('sem vendasMes: Vendas R$ 0,00', /Vendas\s*R\$\s*0,00/.test(t));
+  T('sem vendasMes: margem —', /Margem\s*—/.test(t));
+  T('venda antiga etiquetada', t.includes('venda (antigo)'));
+  T('botão Venda do mês na Empresa', !!document.querySelector('[data-act=vendaMes]'));
+  click('[data-act=vendaMes]'); await wait(200);
+  let f=document.querySelector('form[data-form=vendaMes]');
+  T('form venda do mês abre', !!f);
+  f.querySelector('[name=mes]').value=mesAdd2(mesA,1); f.querySelector('[name=valor]').value='100';
+  sub(f); await wait(300);
+  T('mês futuro rejeitado', f.querySelector('.alert').textContent.includes('futuro'));
+  f.querySelector('[name=mes]').value=mesA; f.querySelector('[name=valor]').value='48.250,00';
+  sub(f); await wait(500);
+  T('grava vendasMes 48250', window.__M['empresas/356/vendasMes/'+mesA]&&window.__M['empresas/356/vendasMes/'+mesA].valor===48250);
+  click('[data-act=vendaMes]'); await wait(200);
+  f=document.querySelector('form[data-form=vendaMes]');
+  T('reabre preenchido', /48\.?250/.test(f.querySelector('[name=valor]').value));
+  f.querySelector('[name=valor]').value='50000'; sub(f); await wait(500);
+  T('um doc só por mês', Object.keys(window.__M).filter(k=>k.startsWith('empresas/356/vendasMes/')).length===1 && window.__M['empresas/356/vendasMes/'+mesA].valor===50000);
+  t=txt();
+  T('card Vendas 50.000', /Vendas\s*R\$\s*50\.000,00/.test(t));
+  T('margem 96,4%', t.includes('96,4%'));
+  click('[data-act=lancNovo]'); await wait(200);
+  T('novo lançamento sem Venda/Custo', !!document.querySelector('form[data-form=lancamento]')&&!document.querySelector('[data-act=lancTipo]'));
+  click('#modal [data-act=fecharModal]');
+  // meta da loja
+  click('[data-act=metaEditar]'); await wait(200);
+  f=document.querySelector('form[data-form=meta]');
+  T('meta da loja abre em Todos', !!f);
+  if(f){ f.querySelector('[name=valor]').value='60000'; sub(f); await wait(500); }
+  T('grava metas/loja_mes', window.__M['empresas/356/metas/loja_'+mesA]&&window.__M['empresas/356/metas/loja_'+mesA].vendas===60000);
+  T('meta 83%', txt().includes('83%'));
+  location.hash='#/painel'; await wait(900);
+  t=txt();
+  T('painel Vendas 50.000', /Vendas[\s\S]{0,40}R\$\s*50\.000,00/.test(t));
+  T('painel botão Venda do mês', !!document.querySelector('[data-act=vendaMes]'));
+  T('painel cartão subsetor mostra gasto', /gasto/i.test(document.querySelector('.sets')?document.querySelector('.sets').innerText:''));
+  fim();
+}catch(e){out.push('ERR '+e.message+' '+(e.stack||'').split('\n')[1]);fim();}})();

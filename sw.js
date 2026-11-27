@@ -3,7 +3,7 @@
 //  - arquivos do app: guardados na instalação e servidos do aparelho (a versão nova chega com um sw.js novo);
 //  - Firebase e fontes (versão fixa, não mudam): guardados na primeira vez e servidos do aparelho.
 // REGRA: a cada envio do index.html, trocar VERSAO aqui e APP_VERSAO no index.html (o teste confere).
-const VERSAO = 'g356-v35';
+const VERSAO = 'g356-v36';
 const EXT = 'g356-ext-1'; // bibliotecas externas com versão fixa
 const ARQUIVOS = ['./', './index.html', './manifest.json', './manifest-lancar.json', './icon-lancar-180.png', './icon-lancar-192.png', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
 const EXTERNOS = [

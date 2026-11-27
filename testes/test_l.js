@@ -1,0 +1,14 @@
+(async()=>{try{ await wait(900);
+  const col=(sel,cell)=>[...document.querySelectorAll(sel)].map(r=>{const c=r.querySelector(cell);return c?Math.round(c.getBoundingClientRect().right):null;}).filter(v=>v!==null);
+  const igual=a=>a.length>1&&a.every(v=>Math.abs(v-a[0])<=1);
+  location.hash='#/freelancers'; await wait(800);
+  T('resumo freelancers: coluna A pagar alinhada', igual(col('.mrow:not(.hd)','.mc[data-l="A pagar"]')));
+  T('presença: coluna valor alinhada', igual(col('.frow','.fval')));
+  location.hash='#/boletos'; await wait(700);
+  T('contas: coluna valor alinhada', igual(col('.brow:not(.hd)','.bval')));
+  const hd=document.querySelector('.brow.hd span:nth-child(3)'), r1=document.querySelector('.brow:not(.hd) .bval');
+  T('contas: cabeçalho Valor alinhado à coluna', hd&&r1&&(hd.offsetParent===null||Math.abs(hd.getBoundingClientRect().right-r1.getBoundingClientRect().right)<=1));
+  location.hash='#/empresa'; await wait(700);
+  T('lançamentos: coluna valor alinhada', igual(col('.brow:not(.hd)','.bval')));
+  T('lançamentos: sem selo vermelho de Gasto', !document.querySelector('.brow .badge.err'));
+  fim(); }catch(e){out.push('ERR '+e.message);fim();}})();

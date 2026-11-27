@@ -1,0 +1,58 @@
+# Backup diário do banco inteiro (empresa, pessoal, usuários, histórico), trancado com a chave pública.
+# 03:17 em Brasília (06:17 UTC). Guarda no branch "backups" (30 dias + 1 por mês para sempre)
+# e também como artefato do GitHub (90 dias). Se o banco encolher de repente, o job falha e o GitHub avisa por e-mail.
+name: Backup diário
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-audit --no-fund firebase-admin@12
+      - name: Pega os backups já guardados
+        run: |
+          set -euo pipefail
+          mkdir -p guardados
+          existe=$(git ls-remote --heads origin backups)   # se a rede falhar, o job para aqui (nunca apaga o que existe)
+          if [ -n "$existe" ]; then
+            git fetch --depth=1 origin backups
+            git archive FETCH_HEAD | tar -x -C guardados
+            test -f guardados/indice.json || { echo "::error::O branch backups existe mas veio sem indice.json. Parei para não apagar nada."; exit 1; }
+            echo "Backups anteriores: $(ls guardados/diario | wc -l) diários, $(ls guardados/mensal | wc -l) mensais"
+          fi
+      - name: Faz o backup
+        run: node scripts/backup.mjs guardados alerta.txt
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Guarda no branch backups
+        run: |
+          set -euo pipefail
+          cd guardados
+          test -f ultimo.g356 && test -f indice.json
+          git init -q -b backups
+          git config user.name "backup-356"
+          git config user.email "backup-356@users.noreply.github.com"
+          git add -A
+          git commit -qm "Backup $(date -u +%F)"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" backups
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_number }}
+          path: guardados/ultimo.g356
+          retention-days: 90
+      - name: Confere se o banco não encolheu
+        run: if [ -f alerta.txt ]; then echo "::error::$(cat alerta.txt)"; exit 1; fi

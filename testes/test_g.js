@@ -1,0 +1,38 @@
+const P='empresas/356/';
+[['importados','Produtos importados',1],['bebidas','Bebidas',2],['cozinha','Cozinha',3],['eventos','Eventos',4],['fornecedores','Fornecedores',5]].forEach(([id,n,o])=>{window.__M[P+'subsetores/'+id]={nome:n,ordem:o,fixo:id==='fornecedores'};});
+window.__M[P+'lancamentos/lev']={tipo:'custo',setor:'eventos',valor:77,data:mesA+'-05',categoria:'Outros custos',descricao:'Teste evento'};
+(async()=>{try{
+  await wait(1200);
+  const ev=window.__M[P+'subsetores/eventos'], cv=window.__M[P+'subsetores/conveniencia'];
+  T('eventos arquivado', ev&&ev.arquivado===true);
+  T('conveniencia criada', cv&&cv.nome==='Conveniência');
+  location.hash='#/empresa'; await wait(700);
+  const chips=[...document.querySelectorAll('[data-act=empSub]')].map(b=>b.textContent);
+  T('chips sem Eventos', !chips.includes('Eventos'));
+  T('chips com Conveniência', chips.includes('Conveniência'));
+  click('[data-act=lancNovo]'); await wait(200);
+  const ops=[...document.querySelectorAll('form[data-form=lancamento] [name=setor] option')].map(o=>o.textContent);
+  T('select sem Eventos e com Conveniência', !ops.some(o=>o.startsWith('Eventos'))&&ops.includes('Conveniência'));
+  click('#modal [data-act=fecharModal]');
+  const nsub=Object.keys(window.__M).filter(k=>k.startsWith(P+'subsetores/')).length;
+  T('6 docs de subsetor', nsub===6);
+  // arquivar/reativar Bebidas
+  click('[data-act=subsManage]'); await wait(200);
+  T('botão arquivar em bebidas', !!document.querySelector('[data-act=subArquivar][data-id=bebidas]'));
+  T('sem arquivar em fornecedores', !document.querySelector('[data-act=subArquivar][data-id=fornecedores]'));
+  click('[data-act=subArquivar][data-id=bebidas]'); await wait(400);
+  T('bebidas arquivado no banco', window.__M[P+'subsetores/bebidas'].arquivado===true);
+  T('Eventos aparece como arquivado na janela', !!document.querySelector('[data-act=subReativar][data-id=eventos]'));
+  click('[data-act=subReativar][data-id=bebidas]'); await wait(400);
+  T('bebidas reativado', window.__M[P+'subsetores/bebidas'].arquivado===false);
+  click('#modal [data-act=fecharModal]'); await wait(200);
+  T('Bebidas volta aos chips', [...document.querySelectorAll('[data-act=empSub]')].some(b=>b.textContent==='Bebidas'));
+  click('[data-act=subsManage]'); await wait(200);
+  let fs=document.querySelector('form[data-form=subset]'); fs.querySelector('[name=nome]').value='Manutenção'; sub(fs); await wait(500);
+  click('[data-act=subsManage]'); await wait(200);
+  T('novo subsetor aparece na janela', [...document.querySelectorAll('form[data-form=subsetRen] [name=nome]')].some(i=>i.value==='Manutenção'));
+  click('#modal [data-act=fecharModal]');
+  location.hash='#/relatorios'; await wait(1000);
+  T('relatório mostra Eventos (arquivado)', txt().includes('Eventos (arquivado)'));
+  fim();
+}catch(e){out.push('ERR '+e.message+' '+(e.stack||'').split('\n')[1]);fim();}})();

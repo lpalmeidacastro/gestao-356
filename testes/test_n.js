@@ -1,0 +1,45 @@
+const PM='pessoal/356/';
+window.__M[PM+'movimentos/m1']={tipo:'gasto',valor:50,data:mesA+'-10',categoria:'Mercado',descricao:'Feira'};
+window.__M[PM+'movimentos/m2']={tipo:'entrada',valor:900,data:mesA+'-11',categoria:'Renda extra',descricao:'Bico'};
+{const o=FileReader.prototype.readAsDataURL;FileReader.prototype.readAsDataURL=function(f){if(f.__n===undefined)return o.call(this,f);const self=this;setTimeout(()=>{Object.defineProperty(self,'result',{value:'data:'+f.type+';base64,'+btoa('A'.repeat(f.__n))});if(self.onload)self.onload();},50);};}
+const anx=()=>Object.keys(window.__M).filter(k=>k.startsWith(PM+'anexos/')).map(k=>({k,...window.__M[k]}));
+const envia=async(file,ok)=>{const dt=new DataTransfer();dt.items.add(file);const i=document.getElementById('arqPes');i.files=dt.files;i.dispatchEvent(new Event('change',{bubbles:true}));await wait(900);for(let k=0;ok&&!ok()&&k<20;k++)await wait(300);};
+const pdf=n=>{const f=new File(['x'],'extrato.pdf',{type:'application/pdf'});f.__n=n;return f;};
+(async()=>{try{
+  await wait(1000);
+  location.hash='#/pessoal'; await wait(900);
+  T('botão de anexos na linha', !!document.querySelector('[data-act=pesAnexos][data-id=m1]'));
+  click('[data-act=pesAnexos][data-id=m1]'); await wait(500);
+  T('modal tem Adicionar', !!document.querySelector('#modal [data-act=pesAnxAdd]'));
+  await envia(pdf(2000),()=>anx().length===1);
+  let a=anx();
+  T('PDF salvo em anexos', a.length===1&&a[0].movId==='m1'&&a[0].tipo==='pdf'&&a[0].nome==='extrato.pdf'&&/^data:application\/pdf/.test(a[0].dataUrl));
+  T('movimento marca nAnexos=1', window.__M[PM+'movimentos/m1'].nAnexos===1);
+  T('modal lista o arquivo', /extrato\.pdf/.test(document.getElementById('modal').innerText));
+  await envia(pdf(900000));
+  T('PDF grande bloqueado', anx().length===1 && /grande/i.test(document.getElementById('modal').innerText));
+  await envia(new File(['oi'],'nota.txt',{type:'text/plain'}));
+  T('tipo não aceito bloqueado', anx().length===1 && /foto|PDF/i.test(document.getElementById('modal').innerText));
+  const c=document.createElement('canvas');c.width=300;c.height=200;c.getContext('2d').fillRect(0,0,300,200);
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  await envia(new File([blob],'foto.png',{type:'image/png'}),()=>anx().length===2);
+  a=anx();
+  T('foto comprimida salva', a.length===2&&a.some(x=>x.tipo==='img'&&/^data:image\/jpeg/.test(x.dataUrl)));
+  T('nAnexos=2', window.__M[PM+'movimentos/m1'].nAnexos===2);
+  for(let i=0;i<3;i++) await envia(pdf(1000),()=>anx().length===3+i);
+  T('limite de 5 anexos', anx().length===5);
+  await envia(pdf(1000));
+  T('sexto bloqueado', anx().length===5 && /5/.test(document.getElementById('modal').innerText));
+  click('#modal [data-act=pesAnxDel]'); await wait(600);
+  T('remover apaga e conta 4', anx().length===4 && window.__M[PM+'movimentos/m1'].nAnexos===4);
+  click('#modal [data-act=fecharModal]'); await wait(300);
+  T('linha com anexo marcada', !!document.querySelector('[data-act=pesAnexos][data-id=m1].tem'));
+  T('linha sem anexo sem marca', !document.querySelector('[data-act=pesAnexos][data-id=m2].tem'));
+  // apagar lançamento apaga anexos
+  click('[data-act=pesEditar][data-id=m1]'); await wait(300);
+  T('edição tem botão Anexos', !!document.querySelector('form[data-form=pessoal] [data-act=pesAnexos]'));
+  click('#modal [data-act=pesApagar]'); await wait(300);
+  click('#modal [data-act=pesApagarOk]'); await wait(700);
+  T('anexos apagados junto', anx().length===0 && !window.__M[PM+'movimentos/m1']);
+  fim();
+}catch(e){out.push('ERR '+e.message+' '+(e.stack||'').split('\n')[1]);fim();}})();

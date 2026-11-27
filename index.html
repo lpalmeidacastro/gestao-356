@@ -542,7 +542,7 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
-const APP_VERSAO = 'g356-v35'; // igual ao VERSAO do sw.js (o teste confere)
+const APP_VERSAO = 'g356-v36'; // igual ao VERSAO do sw.js (o teste confere)
 
 /* ============ rede lenta e sem internet ============ */
 // 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
@@ -567,7 +567,7 @@ function gravarComPrazo(p) {
   if (Rede.esperaServidor) return p;
   let solto = false;
   Rede.pendentes++; pintarRede();
-  p.then(() => {}, e => { if (solto) { console.error(e); aviso('Uma alteração não foi aceita pelo servidor: ' + msgErro(e)); } })
+  p.then(() => {}, e => { if (solto) { console.error(e); aviso('Uma alteração não foi aceita pelo servidor: ' + msgErro(e)); registrarErro('servidor', 'gravação recusada: ' + ((e && e.code) || (e && e.message) || '?')); } })
     .finally(() => { Rede.pendentes = Math.max(0, Rede.pendentes - 1); pintarRede(); });
   return new Promise((ok, falha) => {
     let feito = false;
@@ -576,14 +576,72 @@ function gravarComPrazo(p) {
   });
 }
 async function comServidor(fn) { Rede.esperaServidor++; try { return await fn(); } finally { Rede.esperaServidor--; } }
+/* ============ histórico de toda gravação (jornal) ============ */
+// Cada gravação na empresa ou no pessoal grava junto, no MESMO lote, uma entrada em empresas/356/jornal
+// (ou pessoal/356/jornal) com o que foi gravado, por quem e quando. Se alguém zerar, mudar ou apagar algo,
+// a versão anterior continua no histórico. As regras do banco recusam edição sem a entrada no histórico.
+const NAO_JORNAL = new Set(['jornal', 'erros', 'aparelhos', '_diagnostico']);
+const LIDOS_MAX = 3000, Lidos = new Map(); // últimos documentos lidos (para guardar o conteúdo ao apagar)
+function semArquivo(v, d = 0) { // cópia sem fotos/PDF (ficam no backup diário) e sem marcadores do servidor
+  if (v === null || typeof v !== 'object') return v;
+  if (d > 8) return '(profundo)';
+  if (Array.isArray(v)) return v.slice(0, 500).map(x => semArquivo(x, d + 1));
+  if (typeof v.toDate === 'function') { try { return v.toDate().toISOString(); } catch (e) { return null; } }
+  if (Object.getPrototypeOf(v) !== Object.prototype) return '(servidor)';
+  const o = {};
+  for (const k of Object.keys(v)) if (k !== 'jv') o[k] = k === 'dataUrl' ? '(arquivo)' : semArquivo(v[k], d + 1);
+  return o;
+}
+function lembrar(path, dados) {
+  if (!path || !dados) return;
+  Lidos.delete(path); Lidos.set(path, semArquivo(dados));
+  if (Lidos.size > LIDOS_MAX) Lidos.delete(Lidos.keys().next().value);
+}
+function raizJornal(path) {
+  const m = /^(empresas|pessoal)\/([^/]+)\/([^/]+)\/[^/]+$/.exec(path || '');
+  return m && !NAO_JORNAL.has(m[3]) ? m[1] + '/' + m[2] + '/jornal' : null;
+}
 (function () {
   const F = window.firebase && firebase.firestore;
   if (!F || !F.DocumentReference || !F.Query || !F.WriteBatch) return;
-  const D = F.DocumentReference.prototype, Q = F.Query.prototype, B = F.WriteBatch.prototype, dget = D.get, qget = Q.get, commit = B.commit;
-  D.get = function (o) { if (o) return dget.call(this, o); return lerComPrazo(() => dget.call(this), () => dget.call(this, { source:'cache' }), r => r.exists); };
-  Q.get = function (o) { if (o) return qget.call(this, o); return lerComPrazo(() => qget.call(this), () => qget.call(this, { source:'cache' }), r => !r.empty); };
-  ['set', 'update', 'delete'].forEach(k => { const f = D[k]; D[k] = function (...a) { return gravarComPrazo(f.apply(this, a)); }; });
+  const D = F.DocumentReference.prototype, Q = F.Query.prototype, B = F.WriteBatch.prototype;
+  const dget = D.get, qget = Q.get, commit = B.commit, bset = B.set, bupd = B.update, bdel = B.delete;
+  const quem = () => (auth.currentUser && auth.currentUser.uid) || (Store.s.user && Store.s.user.uid) || null;
+  function anotar(lote, ref, op, dados, merge) {
+    const raiz = raizJornal(ref.path); if (!raiz) return null;
+    const j = db.collection(raiz).doc();
+    bset.call(lote, j, { op, caminho:ref.path, dados:op === 'apagar' ? (Lidos.get(ref.path) || null) : semArquivo(dados), merge:!!merge, por:quem(), em:TS(), app:APP_VERSAO });
+    return j.id;
+  }
+  B.set = function (ref, dados, opc) {
+    const jv = anotar(this, ref, 'gravar', dados, opc && opc.merge);
+    bset.call(this, ref, jv ? { ...dados, jv } : dados, opc);
+    if (opc && opc.merge) lembrar(ref.path, { ...(Lidos.get(ref.path) || {}), ...dados }); else lembrar(ref.path, dados);
+    return this;
+  };
+  B.update = function (ref, ...a) {
+    let dados = a[0];
+    if (typeof dados === 'string') { dados = {}; for (let i = 0; i + 1 < a.length; i += 2) dados[a[i]] = a[i + 1]; }
+    const jv = anotar(this, ref, 'atualizar', dados);
+    bupd.call(this, ref, jv ? { ...dados, jv } : dados);
+    if (Lidos.has(ref.path)) lembrar(ref.path, { ...Lidos.get(ref.path), ...dados });
+    return this;
+  };
+  B.delete = function (ref) { anotar(this, ref, 'apagar'); bdel.call(this, ref); Lidos.delete(ref.path); return this; };
   B.commit = function () { return gravarComPrazo(commit.call(this)); };
+  // gravação direta vira lote (documento + histórico juntos, tudo ou nada)
+  D.set = function (dados, opc) { return db.batch().set(this, dados, opc).commit(); };
+  D.update = function (...a) { return db.batch().update(this, ...a).commit(); };
+  D.delete = function () { return db.batch().delete(this).commit(); };
+  D.get = function (o) {
+    if (o) return dget.call(this, o);
+    return lerComPrazo(() => dget.call(this), () => dget.call(this, { source:'cache' }), r => r.exists).then(r => { if (r && r.exists) lembrar(this.path, r.data()); return r; });
+  };
+  Q.get = function (o) {
+    if (o) return qget.call(this, o);
+    return lerComPrazo(() => qget.call(this), () => qget.call(this, { source:'cache' }), r => !r.empty).then(r => { if (r && r.docs) r.docs.forEach(x => x.ref && lembrar(x.ref.path, x.data())); return r; });
+  };
+  Rede.cru = { update:(ref, dados) => { const b = db.batch(); bupd.call(b, ref, dados); return commit.call(b); } }; // só para o Diagnóstico
 })();
 function redeHTML() {
   const n = Rede.pendentes, txtN = n ? ` ${n} ${n === 1 ? 'alteração guardada' : 'alterações guardadas'} no aparelho, ${n === 1 ? 'vai' : 'vão'} quando a internet voltar.` : '';
@@ -746,6 +804,8 @@ async function iniciar(u) {
       snap = await ref.get();
     }
     if (!snap.exists) { Store.set({ user:u, perfil:null, fase:'semacesso' }); return; }
+    // pede ao navegador para nunca apagar sozinho os dados guardados no aparelho
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* opcional */ }
     const rh = rotaDeHash();
     Store.set({ user:u, perfil:snap.data(), fase:'app', rota:rh.rota, emp:{ ...Store.s.emp, sub:rh.sub || Store.s.emp.sub } });
   } catch (e) {
@@ -797,6 +857,7 @@ function suiteDeTestes(perfil, user) {
   const uid = user.uid;
   const diagEmp = () => db.doc(`empresas/${EMPRESA}/_diagnostico/diag-${uid}`);
   const diagPes = () => db.doc(`pessoal/${EMPRESA}/_diagnostico/diag-${uid}`);
+  const teste = () => db.doc(`empresas/${EMPRESA}/_teste/t-${uid}`), testePes = () => db.doc(`pessoal/${EMPRESA}/_teste/t-${uid}`);
   const T = (nome, esperado, fn) => ({ nome, esperado, fn });
   const comum = [
     T('Empresa: gravar um registro de teste', 'permitir', () => diagEmp().set({ teste:true, em:TS() })),
@@ -806,7 +867,15 @@ function suiteDeTestes(perfil, user) {
     T('Sistema (servidor): gravar', 'negar', () => db.doc('sistema/x').set({ a:1 })),
     T('Trocar a própria empresa', 'negar', () => db.doc('usuarios/' + uid).update({ empresaId:'outra' })),
     T('Apagar o próprio usuário', 'negar', () => db.doc('usuarios/' + uid).delete()),
-    T('Apagar a empresa', 'negar', () => db.doc('empresas/' + EMPRESA).delete())
+    T('Apagar a empresa', 'negar', () => db.doc('empresas/' + EMPRESA).delete()),
+    // v2: histórico obrigatório e valores com formato certo
+    T('Empresa: gravar registro de teste com histórico', 'permitir', () => teste().set({ valor:1, data:'2026-01-01', em:TS() })),
+    T('Empresa: editar com histórico', 'permitir', () => teste().update({ valor:2 })),
+    T('Empresa: editar SEM histórico', 'negar', () => Rede.cru.update(teste(), { valor:0 })),
+    T('Empresa: valor negativo', 'negar', () => teste().update({ valor:-5 })),
+    T('Empresa: data em formato errado', 'negar', () => teste().update({ data:'26/11/2026' })),
+    T('Histórico: alterar uma entrada', 'negar', async () => { const j = (await teste().get({ source:'server' })).data().jv; return Rede.cru.update(db.doc(`empresas/${EMPRESA}/jornal/${j}`), { op:'apagar' }); }),
+    T('Histórico: apagar uma entrada', 'negar', async () => { const j = (await teste().get({ source:'server' })).data().jv; return db.doc(`empresas/${EMPRESA}/jornal/${j}`).delete(); })
   ];
   if (adm) {
     return comum.concat([
@@ -814,6 +883,10 @@ function suiteDeTestes(perfil, user) {
       T('Pessoal: ler', 'permitir', () => diagPes().get()),
       T('Pessoal: apagar', 'permitir', () => diagPes().delete()),
       T('Empresa: apagar o registro de teste (só admin)', 'permitir', () => diagEmp().delete()),
+      T('Empresa: apagar registro com histórico (só admin)', 'permitir', () => teste().delete()),
+      T('Pessoal: gravar e editar com histórico', 'permitir', async () => { await testePes().set({ valor:1 }); return testePes().update({ valor:2 }); }),
+      T('Pessoal: editar SEM histórico', 'negar', () => Rede.cru.update(testePes(), { valor:0 })),
+      T('Pessoal: apagar registro de teste', 'permitir', () => testePes().delete()),
       T('Empresa: mudar o dono do cadastro', 'negar', () => db.doc('empresas/' + EMPRESA).update({ criadoPorUid:'x' })),
       T('Convite com validade de 9 dias', 'negar', () => db.doc('convites/' + novoId()).set({ empresaId:EMPRESA, expiraEmMs:Date.now() + 9*864e5, criadoPorUid:uid, usadoPorUid:null })),
       T('Convite normal (vence em 1 segundo)', 'permitir', () => db.doc('convites/' + novoId()).set({ empresaId:EMPRESA, expiraEmMs:Date.now() + 1000, criadoPorUid:uid, usadoPorUid:null })),
@@ -2915,7 +2988,7 @@ function page(id, s, nomeCurto) {
     const rotas = rotasDoPerfil(s).filter(r => ['energia','relatorios','equipe','diag'].includes(r.id));
     return cab('Mais') + `<div class="box"><div class="lista">${rotas.map(r => `<a href="#/${r.id}">${ico(r.ic)}${esc(r.nome)}</a>`).join('')}
       <a href="#/mais" data-act="sair">${ico('sair')}Sair</a></div></div>
-      <div class="box" style="margin-top:16px">${avisosBox()}</div>
+      <div class="box" style="margin-top:16px">${avisosBox()}</div>${copiaBox()}
       <div class="box" style="margin-top:16px"><div class="temabox" style="padding:0"><span>Aparência</span><div class="tema" role="group" aria-label="Aparência">${temaBotoes()}</div></div></div>`;
   }
   if (id === 'empresa') return setorHTML(s, SETORES.find(x => x.id === s.emp.sub) || { id:'todos', nome:'Empresa' });
@@ -2931,7 +3004,9 @@ function page(id, s, nomeCurto) {
       <div id="equipeLista"><div class="pb"><div class="skel" style="width:40%"></div></div></div></div>`;
   if (id === 'diag') return cab('Diagnóstico das regras', 'Testa, com a sua conta, o que o banco permite e o que bloqueia. Cada linha mostra o esperado e o resultado real.') + `
     <div class="panel"><div class="ph2"><h3>Testes de acesso</h3><button class="btn pri" data-act="rodar" id="btnRodar">Rodar testes</button></div>
-      <div id="diagOut"><div class="pb"><p class="muted" style="font-size:14px">Conta atual: <b style="color:var(--t1)">${esc(s.user.email)}</b> (${s.perfil.papel === 'admin' ? 'admin' : 'gerente'}). Os testes gravam só registros marcados como teste.</p></div></div></div>`;
+      <div id="diagOut"><div class="pb"><p class="muted" style="font-size:14px">Conta atual: <b style="color:var(--t1)">${esc(s.user.email)}</b> (${s.perfil.papel === 'admin' ? 'admin' : 'gerente'}). Os testes gravam só registros marcados como teste.</p></div></div></div>` + (s.perfil.papel === 'admin' ? `
+    <div class="panel"><div class="ph2"><h3>Erros do app</h3><button class="btn" data-act="verErros">Ver erros recentes</button></div>
+      <div id="errosOut"><div class="pb"><p class="muted" style="font-size:14px">Quando algo quebra no aparelho de alguém, o app anota aqui (só a mensagem técnica, sem valores).</p></div></div></div>` : '');
   return vazio('painel', 'Página não encontrada', 'Use o menu para voltar ao painel.');
 }
 
@@ -2992,6 +3067,47 @@ V.rapido = (s, etapa) => {
   return `<div id="redeBar">${redeHTML()}</div><div class="rap"><div class="card">${marca()}${corpo}<div class="rodape"><a href="./">Abrir o app completo</a></div></div></div>`;
 };
 
+/* ============ cópia completa (baixar no aparelho) ============ */
+// Terceira cópia dos dados, nas mãos do dono: um arquivo com TUDO (empresa e, para Luiz/Eliana, o pessoal).
+const COLS_EMP = ['subsetores','vendasMes','categorias','fornecedores','produtos','lancamentos','comprovantes','metas','tarefas','energia','boletos','contas','contasPag','freelancers','presencas','jornal'];
+const COLS_PES = ['movimentos','anexos','categorias','contas','contasPag','jornal'];
+function paraJSON(v, d = 0) {
+  if (v === null || typeof v !== 'object' || d > 20) return v;
+  if (typeof v.toDate === 'function') { try { return { __data:v.toDate().toISOString() }; } catch (e) { return null; } }
+  if (Array.isArray(v)) return v.map(x => paraJSON(x, d + 1));
+  const o = {}; for (const k of Object.keys(v)) o[k] = paraJSON(v[k], d + 1); return o;
+}
+async function exportarTudo() {
+  const docs = {};
+  const ler = async c => { const q = await db.collection(c).get(); q.docs.forEach(x => { docs[c + '/' + x.id] = paraJSON(x.data()); }); };
+  await comServidor(async () => {
+    const e = await db.doc('empresas/' + EMPRESA).get(); if (e.exists) docs['empresas/' + EMPRESA] = paraJSON(e.data());
+    for (const c of COLS_EMP) await ler(`empresas/${EMPRESA}/${c}`);
+    if (ehDonoPes()) for (const c of COLS_PES) await ler(`pessoal/${EMPRESA}/${c}`);
+  });
+  return { formato:'g356-copia-v1', app:APP_VERSAO, geradoEm:new Date().toISOString(), por:(Store.s.user && Store.s.user.email) || '', total:Object.keys(docs).length, docs };
+}
+function copiaBox() {
+  if (!ehAdminFixo(Store.s.user)) return '';
+  return `<div class="box" style="margin-top:16px"><div class="avisos"><span style="font-size:12px;color:var(--t3)">Cópia de segurança</span>
+    <p>O banco faz backup sozinho todo dia de madrugada. Aqui você baixa, quando quiser, um arquivo com <b>todos</b> os dados (com fotos e anexos) para guardar no seu computador ou no iCloud.</p>
+    <button class="btn" data-act="baixarCopia">${ico('check')} Baixar cópia completa</button></div></div>`;
+}
+
+/* ============ registro de erros (para saber quando algo quebra no aparelho de alguém) ============ */
+// Grava só a mensagem técnica do erro, a tela e a versão; nunca valores ou dados lançados.
+const Erros = { enviados:0, MAX:20, vistos:new Set() };
+function registrarErro(tipo, msg, pilha) {
+  try {
+    const u = Store.s.user; msg = String(msg || '').slice(0, 300);
+    if (!u || !msg || Erros.enviados >= Erros.MAX || Erros.vistos.has(msg)) return;
+    Erros.vistos.add(msg); Erros.enviados++;
+    db.collection(`empresas/${EMPRESA}/erros`).doc().set({ tipo, msg, pilha:String(pilha || '').slice(0, 1500), rota:Store.s.rota || '', app:APP_VERSAO, nav:(navigator.userAgent || '').slice(0, 120), uid:u.uid, em:TS() }).catch(() => {});
+  } catch (e) { /* registrar erro nunca pode quebrar o app */ }
+}
+window.addEventListener('error', e => registrarErro('erro', e.message, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; registrarErro('promessa', r.message || r.code || String(r), r.stack); });
+
 /* ============ render ============ */
 let modoLogin = 'entrar';
 let ultimaFase = null;
@@ -3051,6 +3167,28 @@ const acoes = {
   },
   async sair() { await auth.signOut(); try { if (db.terminate) { await db.terminate(); await db.clearPersistence(); } } catch (e) { console.warn(e); } location.hash = ''; if (db.terminate) location.reload(); },
   recarregar() { location.reload(); },
+  async baixarCopia(el) {
+    el.disabled = true; const t0 = el.innerHTML; el.textContent = 'Preparando…';
+    try {
+      const c = await exportarTudo();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(c)], { type:'application/json' }));
+      a.download = 'copia-356-' + hojeStr() + '.json'; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      aviso(`Cópia pronta: ${c.total} registros. Guarde o arquivo no computador ou no iCloud.`, 'ok');
+    } catch (e) { console.error(e); aviso('Não consegui montar a cópia (precisa de internet). ' + msgErro(e)); }
+    el.disabled = false; el.innerHTML = t0;
+  },
+  async verErros() {
+    const out = $('#errosOut'); if (!out) return;
+    try {
+      const q = await comServidor(() => db.collection(`empresas/${EMPRESA}/erros`).get());
+      const ls = q.docs.map(x => x.data()).sort((a, b) => msCriado({ criadoEm:b.em }) - msCriado({ criadoEm:a.em })).slice(0, 30);
+      out.innerHTML = ls.length ? `<div class="scroll-x"><table><thead><tr><th>Erro</th><th>Tela</th><th>Versão</th><th>Quando</th></tr></thead><tbody>${ls.map(r =>
+        `<tr><td>${esc(r.msg)}</td><td>${esc(r.rota)}</td><td>${esc(r.app)}</td><td>${r.em && r.em.toDate ? esc(r.em.toDate().toLocaleString('pt-BR')) : '—'}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="pb"><p class="muted" style="font-size:14px">Nenhum erro registrado.</p></div>';
+    } catch (e) { out.innerHTML = `<div class="pb"><div class="alert err on">${esc(msgErro(e))}</div></div>`; }
+  },
   recarregar() { if (auth.currentUser) iniciar(auth.currentUser); else Store.set({ fase:'login' }); },
   mes(el) {
     const p = Store.s.painel, novo = mesAdd(p.mes, Number(el.dataset.d));

@@ -1,0 +1,25 @@
+const P='empresas/356/', PM='pessoal/356/';
+const ts=n=>({toMillis:()=>n});
+const nomes=()=>Array.from(document.querySelectorAll('.brow:not(.hd) .bnome b')).map(b=>b.textContent.trim());
+(async()=>{try{
+  const hj=window.__iso(0);
+  [['o1','Primeiro',1000],['o2','Segundo',2000],['o3','Terceiro',3000]].forEach(([id,d,ms])=>window.__M[P+'lancamentos/'+id]={tipo:'custo',setor:'bebidas',valor:10,data:hj,categoria:'Mercadoria',descricao:d,forma:'pix',criadoEm:ts(ms)});
+  [['q1','PPrimeiro',1000],['q2','PSegundo',2000],['q3','PTerceiro',3000]].forEach(([id,d,ms])=>window.__M[PM+'movimentos/'+id]={tipo:'gasto',valor:5,data:hj,categoria:'Mercado',descricao:d,forma:'pix',criadoEm:ts(ms)});
+  await wait(900);
+  location.hash='#/empresa'; await wait(1300);
+  const f3=()=>nomes().filter(x=>['Primeiro','Segundo','Terceiro','Segundo editado'].includes(x)).join();
+  T('empresa: ordem inicial', f3()==='Terceiro,Segundo,Primeiro');
+  click('[data-act=lancEditar][data-id=o1]'); await wait(500);
+  let f=document.querySelector('form[data-form=lancamento]');
+  f.querySelector('[name=valor]').value='11'; f.querySelector('[name=descricao]').value='Primeiro editado'; sub(f); await wait(900);
+  T('empresa: editar o mais antigo não muda a posição', nomes().filter(x=>/Primeiro|Segundo|Terceiro/.test(x)).join()==='Terceiro,Segundo,Primeiro editado');
+  click('[data-act=lancEditar][data-id=o2]'); await wait(500);
+  f=document.querySelector('form[data-form=lancamento]'); f.querySelector('[name=descricao]').value='Segundo editado'; sub(f); await wait(900);
+  T('empresa: editar o do meio não muda a posição', nomes().filter(x=>/Primeiro|Segundo|Terceiro/.test(x)).join()==='Terceiro,Segundo editado,Primeiro editado');
+  location.hash='#/pessoal'; await wait(1300);
+  const g=()=>nomes().filter(x=>/^PP|^PS|^PT/.test(x)).join();
+  T('pessoal: ordem inicial', g()==='PTerceiro,PSegundo,PPrimeiro');
+  click('[data-act=pesEditar][data-id=q1]'); await wait(500);
+  f=document.querySelector('form[data-form=pessoal]'); f.querySelector('[name=valor]').value='6'; f.querySelector('[name=descricao]').value='PPrimeiro editado'; sub(f); await wait(900);
+  T('pessoal: editar o mais antigo não muda a posição', g()==='PTerceiro,PSegundo,PPrimeiro editado');
+}catch(e){T('ERRO '+e.message,false);} fim();})();
