@@ -29,7 +29,7 @@ var m=document.createElement('meta');m.name='apple-mobile-web-app-title';m.conte
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&family=Russo+One&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&family=Russo+One&display=swap" media="print" onload="this.media='all'">
 <style>
 /* ===== tokens · marca 356 · escuro ===== */
 :root{
@@ -166,6 +166,7 @@ input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color
 .me .nm span{font-size:12px;color:var(--t3)}
 .me .btn{margin-left:auto;width:44px;padding:0}
 .main{min-width:0}
+.offline .lk{background:none;border:0;color:inherit;font:inherit;font-weight:590;text-decoration:underline;cursor:pointer;padding:0 0 0 6px;min-height:0}
 .offline{background:rgba(255,181,71,.1);border-bottom:1px solid rgba(255,181,71,.3);color:var(--warn);font-size:13px;padding:8px 40px}
 .wrap{max-width:1240px;padding:32px 40px 48px}
 .mhead,.tabbar{display:none}
@@ -541,6 +542,58 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
+const APP_VERSAO = 'g356-v35'; // igual ao VERSAO do sw.js (o teste confere)
+
+/* ============ rede lenta e sem internet ============ */
+// 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
+try { if (db.enablePersistence) db.enablePersistence({ synchronizeTabs:true }).catch(e => console.warn('cache do banco indisponível:', e && e.code)); } catch (e) { console.warn(e); }
+// 2) Leitura: espera o servidor até PRAZO_LER; se a rede estiver lenta, mostra o que está guardado.
+//    Gravação: o banco guarda no aparelho na hora e envia quando der; a tela não fica presa em "Salvando…".
+const Rede = { esperaServidor:0, pendentes:0, velho:false, novaVersao:false, PRAZO_LER:2500, PRAZO_GRAVAR:5000 };
+const semRede = () => navigator.onLine === false;
+function lerComPrazo(servidor, cache, temDados) {
+  if (Rede.esperaServidor) return servidor();
+  if (semRede()) return cache().then(r => r, () => servidor());
+  return new Promise((ok, falha) => {
+    let feito = false;
+    servidor().then(r => { if (!feito) { feito = true; ok(r); } }, e => { if (!feito) { feito = true; falha(e); } else console.warn('leitura atrasada falhou', e); });
+    setTimeout(() => {
+      if (feito) return;
+      cache().then(r => { if (feito || !temDados(r)) return; feito = true; Rede.velho = true; pintarRede(); ok(r); }, () => {});
+    }, Rede.PRAZO_LER);
+  });
+}
+function gravarComPrazo(p) {
+  if (Rede.esperaServidor) return p;
+  let solto = false;
+  Rede.pendentes++; pintarRede();
+  p.then(() => {}, e => { if (solto) { console.error(e); aviso('Uma alteração não foi aceita pelo servidor: ' + msgErro(e)); } })
+    .finally(() => { Rede.pendentes = Math.max(0, Rede.pendentes - 1); pintarRede(); });
+  return new Promise((ok, falha) => {
+    let feito = false;
+    p.then(r => { if (!feito) { feito = true; ok(r); } }, e => { if (!feito) { feito = true; falha(e); } });
+    setTimeout(() => { if (!feito) { feito = true; solto = true; ok(); } }, semRede() ? 0 : Rede.PRAZO_GRAVAR);
+  });
+}
+async function comServidor(fn) { Rede.esperaServidor++; try { return await fn(); } finally { Rede.esperaServidor--; } }
+(function () {
+  const F = window.firebase && firebase.firestore;
+  if (!F || !F.DocumentReference || !F.Query || !F.WriteBatch) return;
+  const D = F.DocumentReference.prototype, Q = F.Query.prototype, B = F.WriteBatch.prototype, dget = D.get, qget = Q.get, commit = B.commit;
+  D.get = function (o) { if (o) return dget.call(this, o); return lerComPrazo(() => dget.call(this), () => dget.call(this, { source:'cache' }), r => r.exists); };
+  Q.get = function (o) { if (o) return qget.call(this, o); return lerComPrazo(() => qget.call(this), () => qget.call(this, { source:'cache' }), r => !r.empty); };
+  ['set', 'update', 'delete'].forEach(k => { const f = D[k]; D[k] = function (...a) { return gravarComPrazo(f.apply(this, a)); }; });
+  B.commit = function () { return gravarComPrazo(commit.call(this)); };
+})();
+function redeHTML() {
+  const n = Rede.pendentes, txtN = n ? ` ${n} ${n === 1 ? 'alteração guardada' : 'alterações guardadas'} no aparelho, ${n === 1 ? 'vai' : 'vão'} quando a internet voltar.` : '';
+  if (Rede.novaVersao) return '<div class="offline" role="status">Nova versão do app pronta. <button class="lk" data-act="recarregar">Atualizar</button></div>';
+  if (semRede()) return `<div class="offline" role="status">Sem internet. Mostrando os dados guardados no aparelho.${txtN}</div>`;
+  if (Rede.velho) return `<div class="offline" role="status">Internet lenta: mostrando os dados guardados no aparelho.${n ? ` Enviando ${n} ${n === 1 ? 'alteração' : 'alterações'}…` : ''} <button class="lk" data-act="recarregar">Atualizar</button></div>`;
+  if (n) return `<div class="offline" role="status">Enviando ${n} ${n === 1 ? 'alteração' : 'alterações'}…</div>`;
+  return '';
+}
+function pintarRede() { const b = document.getElementById('redeBar'); if (b) b.innerHTML = redeHTML(); }
 
 /* ============ utilidades ============ */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -726,7 +779,7 @@ async function criarConta({ nome, email, senha, convite }) {
       const b = db.batch();
       b.update(db.doc('convites/' + convite), { usadoPorUid:cred.user.uid, usadoEmMs:Date.now() });
       b.set(db.doc('usuarios/' + cred.user.uid), { papel:'gerente', empresaId:EMPRESA, email, nome, criadoEm:TS(), conviteId:convite });
-      try { await b.commit(); }
+      try { await comServidor(() => b.commit()); }
       catch (e) { throw (e.code === 'permission-denied' || e.code === 'not-found') ? { message:'Convite inválido, já usado ou vencido. Peça um novo.' } : e; }
     }
   } catch (e) {
@@ -2747,7 +2800,7 @@ V.app = s => {
   </aside>
   <div class="main">
     <div class="mhead"><a href="#/painel" aria-label="Início">${logo('sm')}</a><div class="mh2"><button class="sbtn" data-act="buscaAbrir" aria-label="Buscar no app">${ico('busca')}</button><a class="av" href="#/mais" aria-label="Conta de ${esc(nomeCurto)}">${esc(iniciais(s))}</a></div></div>
-    ${s.online ? '' : '<div class="offline" role="status">Sem internet. O que você vê pode estar desatualizado.</div>'}
+    <div id="redeBar">${redeHTML()}</div>
     <div class="wrap" id="page">${page(atual.id, s, nomeCurto)}</div>
   </div>
   <nav class="tabbar" aria-label="Principal">${tabbar}</nav>
@@ -2936,7 +2989,7 @@ V.rapido = (s, etapa) => {
   else if (etapa === 'ok') corpo = `<div class="feito" role="status"><div class="bola">${ico('check')}</div><h1>Lançado</h1><div class="v">${brl(rapUlt.valor)}</div><p class="muted" style="font-size:14px">em ${esc(rapUlt.onde)}</p></div>
     <div class="acoes"><button class="btn pri full" type="button" data-act="rapOutro">Lançar outro</button></div>`;
   else corpo = `<h1>Novo lançamento</h1><p class="sub" style="margin-bottom:16px">Salva direto no app.</p>${dica}${formLanc(null, rapSetor())}`;
-  return `<div class="rap"><div class="card">${marca()}${corpo}<div class="rodape"><a href="./">Abrir o app completo</a></div></div></div>`;
+  return `<div id="redeBar">${redeHTML()}</div><div class="rap"><div class="card">${marca()}${corpo}<div class="rodape"><a href="./">Abrir o app completo</a></div></div></div>`;
 };
 
 /* ============ render ============ */
@@ -2978,8 +3031,8 @@ window.addEventListener('hashchange', () => {
   const rh = rotaDeHash();
   Store.set({ rota:rh.rota, emp:rh.sub ? { ...Store.s.emp, sub:rh.sub } : Store.s.emp, painel:{ ...Store.s.painel, chave:null } }); // volta ao painel = dados frescos
 });
-window.addEventListener('online', () => Store.set({ online:true }));
-window.addEventListener('offline', () => Store.set({ online:false }));
+window.addEventListener('online', () => { Store.s.online = true; pintarRede(); });
+window.addEventListener('offline', () => { Store.s.online = false; pintarRede(); });
 
 /* ============ eventos ============ */
 function aviso(msg, tipo = 'err') {
@@ -2996,7 +3049,8 @@ const acoes = {
     try { await auth.sendPasswordResetEmail(email.trim()); aviso('Se o e-mail existir, enviamos o link para criar nova senha.', 'ok'); }
     catch (e) { aviso(msgErro(e)); }
   },
-  async sair() { await auth.signOut(); location.hash = ''; },
+  async sair() { await auth.signOut(); try { if (db.terminate) { await db.terminate(); await db.clearPersistence(); } } catch (e) { console.warn(e); } location.hash = ''; if (db.terminate) location.reload(); },
+  recarregar() { location.reload(); },
   recarregar() { if (auth.currentUser) iniciar(auth.currentUser); else Store.set({ fase:'login' }); },
   mes(el) {
     const p = Store.s.painel, novo = mesAdd(p.mes, Number(el.dataset.d));
@@ -3356,7 +3410,7 @@ const acoes = {
     try {
       const id = novoId();
       const exp = Date.now() + 7 * 864e5;
-      await db.doc('convites/' + id).set({ empresaId:EMPRESA, expiraEmMs:exp, criadoPorUid:Store.s.user.uid, usadoPorUid:null });
+      await comServidor(() => db.doc('convites/' + id).set({ empresaId:EMPRESA, expiraEmMs:exp, criadoPorUid:Store.s.user.uid, usadoPorUid:null }));
       const link = location.origin + location.pathname + '?convite=' + id;
       box.innerHTML = `<div class="alert ok on" style="margin-bottom:8px">Convite criado. Vale até ${new Date(exp).toLocaleDateString('pt-BR')} e só funciona uma vez.</div>
         <div class="copy"><input readonly value="${esc(link)}" id="linkConvite"><button class="btn" data-act="copiar" data-alvo="linkConvite">Copiar</button></div>`;
@@ -3372,7 +3426,7 @@ const acoes = {
     const s = Store.s, out = $('#diagOut');
     el.disabled = true; el.textContent = 'Rodando…';
     out.innerHTML = '<div class="pb"><div class="skel" style="width:50%"></div></div>';
-    const res = await rodarTestes(suiteDeTestes(s.perfil, s.user));
+    const res = await comServidor(() => rodarTestes(suiteDeTestes(s.perfil, s.user)));
     const ok = res.filter(r => r.ok).length;
     const tag = r => r.ok ? '<span class="badge ok">ok</span>' : '<span class="badge err">falhou</span>';
     out.innerHTML = `<div class="pb" style="border-bottom:1px solid var(--line)"><span class="badge ${ok === res.length ? 'ok' : 'err'}">${ok} de ${res.length} corretos</span>
@@ -3446,7 +3500,16 @@ document.addEventListener('change', e => { if (e.target.id === 'arqPes' && e.tar
 
 /* ============ service worker (offline do "esqueleto") ============ */
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const tinhaSW = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!tinhaSW) return; // primeira instalação: nada a fazer
+    const el = document.activeElement, ocupado = $('#modal .md') || (el && /INPUT|TEXTAREA|SELECT/.test(el.tagName)) || Rede.pendentes;
+    if (performance.now() < 8000 && !ocupado) { location.reload(); return; } // acabou de abrir: troca sozinho
+    Rede.novaVersao = true; pintarRede();
+  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(reg => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {}));
 }
 </script>
 </body>
