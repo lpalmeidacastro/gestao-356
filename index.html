@@ -1993,7 +1993,7 @@ async function salvarLanc(f, d) {
     }
     const mes = data.slice(0, 7); let lista = L.lista || [];
     lista = id ? lista.filter(x => x.id !== id) : lista;
-    if (mes === L.mes) lista = lista.concat([{ ...(id ? (L.lista.find(x => x.id === id) || {}) : novo), ...mud, id:ref.id, criadoEm:null }]);
+    if (mes === L.mes) { const velho = id ? (L.lista.find(x => x.id === id) || {}) : null; lista = lista.concat([{ ...(velho || novo), ...mud, id:ref.id, criadoEm:velho ? (velho.criadoEm || null) : null }]); }
     invalidarPainel(); fecharModal();
     if (RAPIDO && !id) rapFeito(valor, nomeSetor(d.setor), d.setor);
     Store.set({ lanc:{ ...L, lista, erro:null }, forn:Store.s.forn });
@@ -2553,8 +2553,9 @@ async function salvarPes(f, d) {
       anx.forEach((a, k) => b.set(colPesAnx().doc(), { ...a, movId:ref.id, ord:Date.now() + k, em:TS(), por:Store.s.user.uid }));
       await b.commit();
     }
+    const velhoP = id ? (P.lista || []).find(x => x.id === id) : null;
     let lista = (P.lista || []).filter(x => x.id !== ref.id);
-    if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...mud, id:ref.id }]);
+    if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...(velhoP || {}), ...mud, id:ref.id, criadoEm:velhoP ? (velhoP.criadoEm || null) : null }]);
     fecharModal();
     if (RAPIDO && !id) rapFeito(valor, 'Pessoal', '__pes');
     Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
