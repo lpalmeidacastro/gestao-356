@@ -1381,7 +1381,7 @@ async function fornResolve(d) {
 const fornTxt = x => x && x.fornecedorNome && x.descricao !== x.fornecedorNome ? ' · ' + esc(x.fornecedorNome) : '';
 const jurosCampo = (v, cls) => `<label class="f ${cls || ''}" data-juros><span>Juros pagos, se houver (R$) <span class="muted" style="font-weight:400">· já dentro do valor</span></span><input name="juros" inputmode="decimal" value="${Number(v) > 0 ? esc(String(v).replace('.', ',')) : ''}" placeholder="0,00" autocomplete="off"></label>`;
 const msCriado = x => { const c = x && x.criadoEm; if (c && typeof c.toMillis === 'function') return c.toMillis(); return typeof c === 'number' && c > 0 ? c : Infinity; };
-const porLancamento = lista => lista.map((x, i) => [x, i]).sort((a, b) => { const ma = msCriado(a[0]), mb = msCriado(b[0]); if (ma !== mb) return ma === Infinity ? -1 : mb === Infinity ? 1 : mb - ma; return (b[0].data || '').localeCompare(a[0].data || '') || b[1] - a[1]; }).map(p => p[0]);
+const porLancamento = lista => lista.map((x, i) => [x, i]).sort((a, b) => { const da = b[0].data || '', db = a[0].data || ''; if (da !== db) return da.localeCompare(db); const ma = msCriado(a[0]), mb = msCriado(b[0]); if (ma !== mb) return ma === Infinity ? -1 : mb === Infinity ? 1 : mb - ma; return b[1] - a[1]; }).map(p => p[0]);
 const FORMAS = [['dinheiro', 'Dinheiro'], ['pix', 'Pix'], ['debito', 'Cartão de débito'], ['credito', 'Cartão de crédito'], ['boleto', 'Boleto']];
 const formaNome = v => (FORMAS.find(x => x[0] === v) || [0, ''])[1];
 const formaCampo = (v, cls, opc) => `<label class="f ${cls || ''}" data-forma><span>Forma de pagamento</span><select name="forma" ${opc ? 'data-opc="1"' : ''}><option value="">Escolha…</option>${FORMAS.map(x => `<option value="${x[0]}" ${v === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></label>`;
@@ -2296,7 +2296,6 @@ async function carregarRel() {
 const somaK = (a, k) => a.reduce((s, x) => s + (Number(x[k]) || 0), 0);
 /* ============ análise de gastos: agregação e gráficos SVG (sem biblioteca) ============ */
 const CORES_SERIE = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)'];
-const MAX_ITENS = 7;
 function chaveGasto(x, angulo) {
   if (angulo === 'subsetor') return nomeSetor(x.setor);
   if (angulo === 'fornecedor') return x.fornecedorNome || null;
@@ -2308,12 +2307,12 @@ function agregarGastos(lista, angulo, mes, modo) {
   const com = lista.filter(x => { const k = chaveGasto(x, angulo); if (k === null && doMes(x) === mes) excluido += Number(x.valor) || 0; return k !== null; });
   const tot = {}; com.filter(x => doMes(x) === mes).forEach(x => { const k = chaveGasto(x, angulo); tot[k] = (tot[k] || 0) + (Number(x.valor) || 0); });
   const ord = Object.keys(tot).sort((a, b) => tot[b] - tot[a] || a.localeCompare(b));
-  const grupos = ord.length > MAX_ITENS ? ord.slice(0, MAX_ITENS).map(k => [k]).concat([ord.slice(MAX_ITENS)]) : ord.map(k => [k]);
+  const grupos = ord.map(k => [k]);
   const total = ord.reduce((s, k) => s + tot[k], 0);
   const eixo = modo === 'mes' ? Array.from({ length:12 }, (_, i) => mesAdd(mes, i - 11)) : Array.from({ length:diasNoMes(mes) }, (_, i) => pad(i + 1));
   const itens = [], series = [];
   grupos.forEach((g, i) => {
-    const outros = g.length > 1 || (ord.length > MAX_ITENS && i === MAX_ITENS), nome = outros ? 'Outros' : g[0], cor = outros ? 'var(--s0)' : CORES_SERIE[i];
+    const nome = g[0], cor = CORES_SERIE[i % CORES_SERIE.length];
     const del = com.filter(x => g.includes(chaveGasto(x, angulo)));
     const noMes = del.filter(x => doMes(x) === mes), t = somaK(noMes, 'valor'), antes = somaK(del.filter(x => doMes(x) === ant), 'valor');
     const mx = noMes.slice().sort((a, b) => (Number(b.valor) || 0) - (Number(a.valor) || 0))[0];
