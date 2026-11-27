@@ -3,7 +3,7 @@
 //  - arquivos do app: guardados na instalação e servidos do aparelho (a versão nova chega com um sw.js novo);
 //  - Firebase e fontes (versão fixa, não mudam): guardados na primeira vez e servidos do aparelho.
 // REGRA: a cada envio do index.html, trocar VERSAO aqui e APP_VERSAO no index.html (o teste confere).
-const VERSAO = 'g356-v39';
+const VERSAO = 'g356-v40';
 const EXT = 'g356-ext-1'; // bibliotecas externas com versão fixa
 const ARQUIVOS = ['./', './index.html', './manifest.json', './manifest-lancar.json', './icon-lancar-180.png', './icon-lancar-192.png', './icon-192.png', './icon-512.png', './logo-356.png', './logo-356-claro.png'];
 const EXTERNOS = [
@@ -21,7 +21,8 @@ const guardavel = r => r && (r.ok || r.type === 'opaque');
 
 self.addEventListener('install', e => {
   e.waitUntil(Promise.all([
-    caches.open(VERSAO).then(c => c.addAll(ARQUIVOS)),
+    // cache:'reload' = ignora o cache do navegador (o GitHub Pages guarda 10 min e guardava o index velho)
+    caches.open(VERSAO).then(c => Promise.all(ARQUIVOS.map(u => fetch(new Request(u, { cache:'reload' })).then(r => r.ok ? c.put(u, r) : Promise.reject(new Error(u)))))),
     // externos: melhor esforço (se falhar, guarda no primeiro uso)
     caches.open(EXT).then(c => Promise.all(EXTERNOS.map(u => c.match(u).then(j => j || buscarExt(u).then(r => guardavel(r) && c.put(u, r))).catch(() => {}))))
   ]).then(() => self.skipWaiting()));
