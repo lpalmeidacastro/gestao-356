@@ -508,6 +508,9 @@ input[type=date]{color-scheme:dark}
   @page{size:A4;margin:12mm}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+/* colunas: só a primeira fica à esquerda; as demais (cabeçalho e valores) ficam centralizadas */
+table th:not(:first-child),table td:not(:first-child){text-align:center!important}
+@media (min-width:701px){.brow>:not(:first-child):not(.bact),.mrow>:not(:first-child):not(.fact),.frow>:not(:first-child),.fr>:not(:first-child),.csr>:not(:first-child){text-align:center!important}}
 </style>
 </head>
 <body>
