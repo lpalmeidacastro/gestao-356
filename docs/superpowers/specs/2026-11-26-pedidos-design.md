@@ -11,6 +11,8 @@
 - Saldo = soma dos pedidos − soma dos pagamentos (`pagForn`) do fornecedor. Gastos antigos lançados à mão não abatem.
 - Regras do banco: não mudam (as coleções novas caem na regra geral da empresa, com histórico).
 
-**Escolhas minhas:** o saldo usa o total pedido (se faltar produto, a tela mostra "faltou N produto" e o dono edita o pedido se não vai pagar a falta); preço que mudou no pedido atualiza o cadastro (caixa marcada, dá para desmarcar); produto novo pode ser criado dentro do pedido; editar o pedido mantém a conferência dos produtos que continuam; data do pedido, da entrega e do pagamento não podem ser no futuro.
+**Escolhas minhas:** preço que mudou no pedido atualiza o cadastro (caixa marcada, dá para desmarcar); produto novo pode ser criado dentro do pedido; editar o pedido mantém a conferência dos produtos que continuam; data do pedido, da entrega e do pagamento não podem ser no futuro.
 
 **Fora agora:** entrega não mexe no Estoque; pedidos não entram na busca nem nos relatórios (os pagamentos entram, como gastos).
+
+**Ajuste do dono (26/11, v38):** se faltar produto, mostrar o saldo se o pedido viesse certo, o saldo correto (pelo que chegou) e a diferença do erro. Saldo a pagar = valor do que chegou (produto conferido conta pela quantidade recebida; não conferido conta pelo pedido) − pagamentos. Quadro "Diferença na entrega" (Saldo se viesse certo, Saldo correto, Diferença do erro), linha do pedido com valor correto + "pedido R$ X · faltou R$ Y", coluna Diferença na visão de todos, saldo correto no registrar pagamento. Se vier a mais, mostra "veio a mais".

@@ -122,6 +122,8 @@ input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color
 .ckl{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:14px;color:var(--t2)}
 .ckl input[type=checkbox]{width:22px;height:22px}
 .ckl b{color:var(--t1);font-weight:510}
+.bdif{display:block;font-size:12px;color:var(--t3);font-weight:400;line-height:1.4}
+@media (max-width:700px){.bdif{max-width:120px;margin-left:auto;text-align:right}}
 @media (max-width:700px){.pitem{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px}.pi-t{grid-column:1/3}.conf{grid-template-columns:minmax(0,1fr) 96px}}
 .hint{font-size:12px;color:var(--t4);margin-top:8px}
 
@@ -554,7 +556,7 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
-const APP_VERSAO = 'g356-v37'; // igual ao VERSAO do sw.js (o teste confere)
+const APP_VERSAO = 'g356-v38'; // igual ao VERSAO do sw.js (o teste confere)
 
 /* ============ rede lenta e sem internet ============ */
 // 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
@@ -2326,10 +2328,13 @@ function statusPed(p) {
 const badgePed = st => st === 'entregue' ? '<span class="badge ok">Entregue</span>' : st === 'falta' ? '<span class="badge warn">Entregue com falta</span>' : st === 'parcial' ? '<span class="badge warn">Parcial</span>' : '<span class="badge">A entregar</span>';
 const faltasPed = p => (p.itens || []).filter(x => x.recebido && (Number(x.qtdRecebida) || 0) < (Number(x.qtd) || 0)).map(x => 'faltou ' + fmtQtd(r2(x.qtd - (Number(x.qtdRecebida) || 0))) + ' ' + x.nome);
 const ordPed = lista => porLancamento(lista);
+// valor correto do pedido: produto conferido conta pela quantidade que chegou; o que ainda não foi conferido conta pelo pedido
+const valorReal = p => r2((p.itens || []).reduce((a, x) => a + (x.recebido ? r2((Number(x.qtdRecebida) || 0) * (Number(x.preco) || 0)) : (Number(x.total) || 0)), 0));
+const difTxt = d => d > 0 ? 'faltou ' + brl(d) : 'veio a mais ' + brl(-d);
 function resumoForn(fid) {
   const S = Store.s.ped, ps = (S.pedidos || []).filter(x => !fid || x.fornecedorId === fid), pg = (S.pags || []).filter(x => !fid || x.fornecedorId === fid);
-  const total = r2(ps.reduce((a, x) => a + (Number(x.valor) || 0), 0)), pago = r2(pg.reduce((a, x) => a + (Number(x.valor) || 0), 0));
-  return { ps, pg, total, pago, saldo:r2(total - pago), aEnt:ps.filter(x => !x.entregue).length };
+  const total = r2(ps.reduce((a, x) => a + (Number(x.valor) || 0), 0)), real = r2(ps.reduce((a, x) => a + valorReal(x), 0)), pago = r2(pg.reduce((a, x) => a + (Number(x.valor) || 0), 0));
+  return { ps, pg, total, real, pago, dif:r2(total - real), saldo:r2(real - pago), saldoCerto:r2(total - pago), aEnt:ps.filter(x => !x.entregue).length };
 }
 const nPed = n => n + (n === 1 ? ' pedido' : ' pedidos'), nPag = n => n + (n === 1 ? ' pagamento' : ' pagamentos');
 function pedidosHTML(head, tabs) {
@@ -2339,21 +2344,23 @@ function pedidosHTML(head, tabs) {
   if (!FL.length) return head + erro + `<div class="stack">${tabs}<section class="panel" style="margin:0"><div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum fornecedor cadastrado ainda. Cadastre o fornecedor para lançar pedidos.<div style="margin-top:16px"><button class="btn pri" data-act="fornManage">Cadastrar fornecedor</button></div></div></section></div>`;
   const fid = FL.some(x => x.id === S.forn) ? S.forn : '', R = resumoForn(fid);
   const selF = `<label class="f noprint" style="margin:0;max-width:420px"><span>Fornecedor</span><select id="pedForn"><option value="">Todos os fornecedores</option>${FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`;
-  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
-  const cards = `<div class="rcards">${card('var(--pur)', 'Total em pedidos', brl(R.total), nPed(R.ps.length))}${card('var(--ok)', 'Total pago', brl(R.pago), nPag(R.pg.length))}${card(R.saldo > 0 ? 'var(--warn)' : 'var(--ok)', 'Saldo a pagar', brl(Math.max(0, R.saldo)), R.saldo < 0 ? 'crédito de ' + brl(-R.saldo) : R.saldo > 0 ? 'falta pagar' : 'nada a pagar')}${card('var(--t3)', 'A entregar', R.aEnt, R.aEnt === 1 ? 'pedido sem entrega completa' : 'pedidos sem entrega completa')}</div>`;
+  const card = (cor, label, valor, q, k) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v" ${k ? `data-r="${k}"` : ''}>${valor}</span><span class="q">${q}</span></div>`;
+  const saldoV = s => s < 0 ? 'crédito ' + brl(-s) : brl(s);
+  const cards = `<div class="rcards">${card('var(--pur)', 'Total em pedidos', brl(R.total), nPed(R.ps.length))}${card('var(--ok)', 'Total pago', brl(R.pago), nPag(R.pg.length), 'pago')}${card(R.saldo > 0 ? 'var(--warn)' : 'var(--ok)', 'Saldo a pagar', saldoV(R.saldo), R.dif ? 'pelo que chegou' : R.saldo > 0 ? 'falta pagar' : R.saldo < 0 ? 'pago a mais' : 'nada a pagar', 'saldo')}${card('var(--t3)', 'A entregar', R.aEnt, R.aEnt === 1 ? 'pedido sem entrega completa' : 'pedidos sem entrega completa')}</div>`
+    + (R.dif ? `<section class="panel" style="margin:0"><div class="ph2"><h3>Diferença na entrega</h3></div><div class="rcards" style="padding:16px">${card('var(--t3)', 'Saldo se viesse certo', saldoV(R.saldoCerto), 'pelo total dos pedidos', 'certo')}${card('var(--warn)', 'Saldo correto', saldoV(R.saldo), 'pelo que chegou')}${card('var(--warn)', 'Diferença do erro', brl(Math.abs(R.dif)), R.dif > 0 ? 'produtos que faltaram' : 'produtos que vieram a mais', 'dif')}</div></section>` : '');
   const vazio = t => `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">${t}</div>`;
   if (!fid) {
     const linhas = FL.map(f => ({ f, r:resumoForn(f.id) })).filter(x => x.r.ps.length || x.r.pg.length).sort((a, b) => b.r.saldo - a.r.saldo);
-    const tab = linhas.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th>Pedidos</th><th>Pago</th><th>Saldo a pagar</th><th>A entregar</th><th></th></tr></thead><tbody>${linhas.map(({ f, r }) =>
-      `<tr><td style="color:var(--t1)">${esc(f.nome)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.total)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.pago)}</td><td style="font-variant-numeric:tabular-nums;color:var(--t1)">${r.saldo < 0 ? 'crédito ' + brl(-r.saldo) : brl(r.saldo)}</td><td>${r.aEnt}</td><td><button class="btn" data-act="pedAbrir" data-id="${esc(f.id)}" style="height:36px">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : vazio('Nenhum pedido ainda. Use "+ Novo pedido".');
+    const tab = linhas.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th>Pedidos</th><th>Pago</th><th>Saldo a pagar</th><th>Diferença</th><th>A entregar</th><th></th></tr></thead><tbody>${linhas.map(({ f, r }) =>
+      `<tr><td style="color:var(--t1)">${esc(f.nome)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.total)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.pago)}</td><td style="font-variant-numeric:tabular-nums;color:var(--t1)">${r.saldo < 0 ? 'crédito ' + brl(-r.saldo) : brl(r.saldo)}</td><td style="font-variant-numeric:tabular-nums">${r.dif ? difTxt(r.dif) : '—'}</td><td>${r.aEnt}</td><td><button class="btn" data-act="pedAbrir" data-id="${esc(f.id)}" style="height:36px">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : vazio('Nenhum pedido ainda. Use "+ Novo pedido".');
     return head + erro + `<div class="stack">${tabs}${selF}${cards}<section class="panel" style="margin:0"><div class="ph2"><h3>Por fornecedor</h3></div>${tab}</section></div>`;
   }
   const rowsP = ordPed(R.ps).map(p => {
-    const st = statusPed(p), it = p.itens || [], fal = faltasPed(p);
+    const st = statusPed(p), it = p.itens || [], fal = faltasPed(p), real = valorReal(p), dif = r2((Number(p.valor) || 0) - real);
     const sub = [it.length + (it.length === 1 ? ' produto' : ' produtos') + ': ' + it.map(x => fmtQtd(x.qtd) + ' ' + x.nome).join(', ')].concat(fal, p.obs ? [p.obs] : []);
     return `<div class="brow" role="row">
       <div class="bnome"><b>Pedido de ${dataBRfull(p.data)}</b><span title="${esc(sub.join(' · '))}">${esc(sub.join(' · '))}</span></div>
-      <div class="bven">${dataBR(p.data)}${p.entregueEm ? `<span style="display:block">entrega ${dataBR(p.entregueEm)}</span>` : ''}</div><div class="bval">${brl(p.valor)}</div><div class="bst">${badgePed(st)}</div>
+      <div class="bven">${dataBR(p.data)}${p.entregueEm ? `<span style="display:block">entrega ${dataBR(p.entregueEm)}</span>` : ''}</div><div class="bval">${brl(dif ? real : p.valor)}${dif ? `<span class="bdif">pedido ${brl(p.valor)} · <b style="color:var(--warn);font-weight:510">${esc(difTxt(dif))}</b></span>` : ''}</div><div class="bst">${badgePed(st)}</div>
       <div class="bact"><button class="btn ${st === 'aberto' || st === 'parcial' ? 'pg' : ''}" data-act="pedEntrega" data-id="${esc(p.id)}" style="height:44px">Conferir</button>
         <button class="ib" data-act="pedEditar" data-id="${esc(p.id)}" aria-label="Editar pedido">${ico('edit')}</button></div></div>`;
   }).join('');
@@ -2525,7 +2532,7 @@ function formPagForn(g) {
   const R = fid ? resumoForn(fid) : null;
   return `<form data-form="pedPag" data-id="${g ? esc(g.id) : ''}" novalidate>
     <div class="alert" role="alert"></div>
-    ${R ? `<div class="pedtot"><span>Saldo a pagar${g ? ' (contando este pagamento)' : ''}</span><b>${R.saldo < 0 ? 'crédito ' + brl(-R.saldo) : brl(R.saldo)}</b></div>` : ''}
+    ${R ? `<div class="pedtot"><span>Saldo a pagar${g ? ' (contando este pagamento)' : ''}${R.dif ? `<span style="display:block;font-size:12px;color:var(--t3)">pelo que chegou · se viesse certo: ${R.saldoCerto < 0 ? 'crédito ' + brl(-R.saldoCerto) : brl(R.saldoCerto)}</span>` : ''}</span><b>${R.saldo < 0 ? 'crédito ' + brl(-R.saldo) : brl(R.saldo)}</b></div>` : ''}
     <label class="f"><span>Fornecedor</span><select name="fornecedorId">${fid ? '' : '<option value="">Escolha o fornecedor</option>'}${FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
     <label class="f"><span>Valor pago (R$)</span><input name="valor" inputmode="decimal" value="${g ? esc(dec2(g.valor)) : ''}" placeholder="1.234,56" autocomplete="off"></label>
     <label class="f"><span>Data do pagamento</span><input name="data" type="date" value="${g ? esc(g.data) : hojeStr()}" max="${hojeStr()}"></label>

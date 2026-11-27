@@ -2,6 +2,7 @@
 const P='empresas/356/';
 const ks=pre=>Object.keys(window.__M).filter(k=>k.startsWith(pre));
 const espera=async(c,n=25)=>{for(let k=0;k<n&&!c();k++)await wait(200);};
+const R=k=>{const e=document.querySelector('[data-r='+k+']');return e?e.textContent.replace(/\s/g,' ').trim():'';};
 const docs=pre=>ks(pre).map(k=>({k,...window.__M[k]}));
 window.__M[P+'fornecedores/F1']={nome:'Distribuidora Sol',tipos:[]};
 window.__M[P+'fornecedores/F2']={nome:'Importadora Lua',tipos:[]};
@@ -62,7 +63,8 @@ window.__M[P+'fornProdutos/P9']={fornecedorId:'F2',nome:'Lámen picante',preco:9
   T('produto novo do pedido entrou no cadastro', misso && misso.fornecedorId==='F1' && misso.preco===8 && pd.itens[1].prodId===misso.k.split('/').pop());
   await wait(300);
   T('lista mostra o pedido A entregar com o total', /A entregar/.test(txt()) && /181,00/.test(txt()));
-  T('saldo a pagar = total dos pedidos', /Saldo a pagar[\s\S]*181,00/.test(txt()));
+  T('saldo a pagar = total dos pedidos', /181,00/.test(R('saldo')));
+  T('sem falta não mostra diferença', !document.querySelector('[data-r=dif]'));
   // conferência da entrega
   const pid=pd.k.split('/').pop();
   await clicaAte(`[data-act=pedEntrega][data-id="${pid}"]`,'form[data-form=pedEntrega]');
@@ -83,10 +85,15 @@ window.__M[P+'fornProdutos/P9']={fornecedorId:'F2',nome:'Lámen picante',preco:9
   T('tudo conferido marca pedido entregue com data', pp.entregue===true && pp.entregueEm===hoje && pp.itens[1].qtdRecebida===2);
   await wait(300);
   T('lista mostra Entregue com falta', /Entregue com falta/.test(txt()) && /falt(ou|aram) 1/i.test(txt()));
+  T('saldo correto desconta o que faltou', /126,00/.test(R('saldo')));
+  T('mostra o saldo se o pedido viesse certo', /181,00/.test(R('certo')));
+  T('mostra a diferença do erro', /55,00/.test(R('dif')));
+  const linhaP=Array.from(document.querySelectorAll('.brow')).find(r=>/Entregue com falta/.test(r.textContent));
+  T('linha do pedido mostra valor certo, valor correto e diferença', linhaP && /126,00/.test(linhaP.textContent) && /181,00/.test(linhaP.textContent) && /55,00/.test(linhaP.textContent));
   // pagamentos em partes
   await clicaAte('[data-act=pedPagar]','form[data-form=pedPag]');
   f=document.querySelector('form[data-form=pedPag]');
-  T('pagamento mostra saldo atual', /181,00/.test(f.textContent));
+  T('pagamento mostra saldo correto', /126,00/.test(f.textContent));
   const L0=ks(P+'lancamentos/').length;
   f.querySelector('[name=valor]').value='100'; window.__semForma=true; sub(f); await wait(500); window.__semForma=false;
   T('pagamento sem forma não grava', ks(P+'lancamentos/').length===L0);
@@ -94,22 +101,22 @@ window.__M[P+'fornProdutos/P9']={fornecedorId:'F2',nome:'Lámen picante',preco:9
   const pg=docs(P+'lancamentos/').find(x=>x.pagForn);
   T('pagamento vira gasto do fornecedor', pg && pg.tipo==='custo' && pg.setor==='fornecedores' && pg.fornecedorId==='F1' && pg.fornecedorNome==='Distribuidora Sol' && pg.valor===100 && pg.forma==='pix' && pg.data===hoje);
   await wait(300);
-  T('saldo abate o pagamento', /Saldo a pagar[\s\S]*81,00/.test(txt()) && /Total pago[\s\S]*100,00/.test(txt()));
+  T('saldo abate o pagamento', /26,00/.test(R('saldo')) && /81,00/.test(R('certo')) && /55,00/.test(R('dif')) && /100,00/.test(R('pago')));
   T('pagamento aparece na lista de pagamentos', /Pagamentos/.test(txt()) && /Pix/.test(txt()));
   await clicaAte('[data-act=pedPagar]','form[data-form=pedPag]');
-  f=document.querySelector('form[data-form=pedPag]'); f.querySelector('[name=valor]').value='81'; f.querySelector('[name=forma]').value='dinheiro';
+  f=document.querySelector('form[data-form=pedPag]'); f.querySelector('[name=valor]').value='26'; f.querySelector('[name=forma]').value='dinheiro';
   sub(f); await espera(()=>docs(P+'lancamentos/').filter(x=>x.pagForn).length===2);
   await wait(300);
-  T('saldo zera depois do segundo pagamento', /Saldo a pagar[\s\S]*0,00/.test(txt()) && !/Saldo a pagar[\s\S]{0,80}81,00/.test(txt()));
+  T('saldo zera depois do segundo pagamento', /R\$\s0,00/.test(R('saldo')) && /55,00/.test(R('certo')));
   // editar pagamento
-  const pg2=docs(P+'lancamentos/').find(x=>x.pagForn&&x.valor===81), pgid=pg2.k.split('/').pop();
+  const pg2=docs(P+'lancamentos/').find(x=>x.pagForn&&x.valor===26), pgid=pg2.k.split('/').pop();
   await clicaAte(`[data-act=pedPagEditar][data-id="${pgid}"]`,'form[data-form=pedPag]');
   f=document.querySelector('form[data-form=pedPag]');
-  T('editar pagamento traz valor e forma', f.querySelector('[name=valor]').value==='81,00' && f.querySelector('[name=forma]').value==='dinheiro');
-  f.querySelector('[name=valor]').value='80'; sub(f); await espera(()=>window.__M[pg2.k].valor===80);
-  T('editar pagamento grava novo valor', window.__M[pg2.k].valor===80 && window.__M[pg2.k].pagForn===true);
+  T('editar pagamento traz valor e forma', f.querySelector('[name=valor]').value==='26,00' && f.querySelector('[name=forma]').value==='dinheiro');
+  f.querySelector('[name=valor]').value='25'; sub(f); await espera(()=>window.__M[pg2.k].valor===25);
+  T('editar pagamento grava novo valor', window.__M[pg2.k].valor===25 && window.__M[pg2.k].pagForn===true);
   await wait(300);
-  T('saldo recalcula após editar', /Saldo a pagar[\s\S]*1,00/.test(txt()));
+  T('saldo recalcula após editar', /R\$\s1,00/.test(R('saldo')));
   // editar pedido mantém criadoEm e recalcula
   window.__M[pd.k].criadoEm=12345;
   await clicaAte(`[data-act=pedEditar][data-id="${pid}"]`,'form[data-form=pedido]');
@@ -120,9 +127,11 @@ window.__M[P+'fornProdutos/P9']={fornecedorId:'F2',nome:'Lámen picante',preco:9
   pp=window.__M[pd.k];
   T('editar pedido recalcula total e mantém criadoEm', pp.valor===236 && pp.criadoEm===12345);
   T('editar pedido mantém a conferência dos itens que não mudaram', pp.itens[1].recebido===true);
-  // visão de todos os fornecedores
+  await wait(300);
+  T('pedido editado: saldo certo e diferença', /R\$\s1,00/.test(R('saldo')) && /111,00/.test(R('certo')) && /110,00/.test(R('dif')));
   chg(document.querySelector('#pedForn'),''); await wait(400);
-  T('visão geral lista o fornecedor com saldo', /Distribuidora Sol/.test(txt()) && /56,00/.test(txt()));
+  const lf=Array.from(document.querySelectorAll('tbody tr')).find(r=>/Distribuidora Sol/.test(r.textContent));
+  T('visão geral mostra saldo correto e diferença', lf && /R\$\s1,00/.test(lf.textContent) && /110,00/.test(lf.textContent) && /Diferença/.test(txt()));
   // pagamento aparece em Lançamentos
   await clicaAte('[data-act=setorTab][data-t=lanc]','.brow.fp');
   await wait(600);
