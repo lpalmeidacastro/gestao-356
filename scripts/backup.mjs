@@ -20,10 +20,12 @@ const db = admin.firestore();
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const publica = fs.readFileSync(path.join(aqui, 'backup-chave-publica.pem'), 'utf8');
 const quando = new Date().toISOString();
+// nome dos arquivos pela data de Brasília (UTC-3, sem horário de verão)
+const local = new Date(Date.now() - 3 * 3600e3).toISOString().replace('Z', '-03:00');
 const docs = await exportar(db, m => console.log(m));
 const total = Object.keys(docs).length;
 const cifrado = cifrar({ formato: 'g356-copia-v1', origem: 'backup-diario', geradoEm: quando, total, docs }, publica);
-const alerta = guardar(pasta, cifrado, total, quando);
+const alerta = guardar(pasta, cifrado, total, local);
 fs.writeFileSync(path.join(pasta, 'LEIA-ME.md'), fs.readFileSync(path.join(aqui, 'backup-LEIA-ME.md'), 'utf8'));
 console.log(`Backup ${quando}: ${total} documentos, ${(cifrado.length / 1024).toFixed(1)} KB (trancado)`);
 nota('notice', `${total} documentos guardados`);
