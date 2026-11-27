@@ -1,0 +1,132 @@
+// Pedidos a fornecedores: produtos por fornecedor, pedido com itens, conferência da entrega, pagamentos que viram gasto e saldo
+const P='empresas/356/';
+const ks=pre=>Object.keys(window.__M).filter(k=>k.startsWith(pre));
+const espera=async(c,n=25)=>{for(let k=0;k<n&&!c();k++)await wait(200);};
+const docs=pre=>ks(pre).map(k=>({k,...window.__M[k]}));
+window.__M[P+'fornecedores/F1']={nome:'Distribuidora Sol',tipos:[]};
+window.__M[P+'fornecedores/F2']={nome:'Importadora Lua',tipos:[]};
+window.__M[P+'fornProdutos/P1']={fornecedorId:'F1',nome:'Saquê 720 ml',preco:50};
+window.__M[P+'fornProdutos/P9']={fornecedorId:'F2',nome:'Lámen picante',preco:9};
+(async()=>{try{
+  await wait(1000);
+  const hoje=window.__iso(0);
+  location.hash='#/empresa'; await wait(900);
+  T('aba Pedidos existe', !!document.querySelector('[data-act=setorTab][data-t=pedidos]'));
+  await clicaAte('[data-act=setorTab][data-t=pedidos]','#pedForn');
+  const sel=document.querySelector('#pedForn');
+  T('seletor de fornecedor com os 2 fornecedores', sel && /Distribuidora Sol/.test(sel.textContent) && /Importadora Lua/.test(sel.textContent));
+  chg(sel,'F1'); await wait(400);
+  T('fornecedor escolhido fica marcado', document.querySelector('#pedForn').value==='F1');
+  // cadastro de produtos do fornecedor
+  await clicaAte('[data-act=pedProdutos]','form[data-form=fornProd]');
+  const nomesM=Array.from(document.querySelectorAll('#modal input[name=nome]')).map(i=>i.value).join('|');
+  T('produtos do fornecedor: mostra o já cadastrado e não o de outro', /Saquê 720 ml/.test(nomesM) && !/Lámen/.test(nomesM));
+  let f=document.querySelector('form[data-form=fornProd]:not([data-id])');
+  f.querySelector('[name=nome]').value='Shoyu 1 L'; f.querySelector('[name=preco]').value='12,50'; sub(f);
+  await espera(()=>docs(P+'fornProdutos/').some(x=>x.nome==='Shoyu 1 L'));
+  const shoyu=docs(P+'fornProdutos/').find(x=>x.nome==='Shoyu 1 L');
+  T('produto novo gravado com fornecedor e preço', shoyu && shoyu.fornecedorId==='F1' && shoyu.preco===12.5);
+  fecharModal(); await wait(200);
+  // novo pedido
+  await clicaAte('[data-act=pedNovo]','form[data-form=pedido]');
+  f=document.querySelector('form[data-form=pedido]');
+  T('pedido já vem com o fornecedor escolhido', f.querySelector('[name=fornecedorId]').value==='F1');
+  T('pedido vem com data de hoje', f.querySelector('[name=data]').value===hoje);
+  const PED0=ks(P+'pedidos/').length;
+  // sem itens preenchidos não grava
+  sub(f); await wait(500);
+  T('pedido sem produto não grava e avisa', ks(P+'pedidos/').length===PED0 && /produto/i.test(f.querySelector('.alert').textContent));
+  let it=f.querySelectorAll('[data-item]');
+  T('produto do item lista só os do fornecedor', /Saquê 720 ml/.test(it[0].textContent) && /Shoyu 1 L/.test(it[0].textContent) && !/Lámen/.test(it[0].textContent));
+  chg(it[0].querySelector('[data-k=prod]'),'P1'); await wait(100);
+  T('escolher produto preenche o preço do cadastro', it[0].querySelector('[data-k=preco]').value==='50,00');
+  const q0=it[0].querySelector('[data-k=qtd]'); q0.value='3'; q0.dispatchEvent(new Event('input',{bubbles:true})); await wait(50);
+  T('total do item calculado', /150,00/.test(it[0].querySelector('[data-k=tot]').textContent));
+  const p0=it[0].querySelector('[data-k=preco]'); p0.value='55'; p0.dispatchEvent(new Event('input',{bubbles:true}));
+  click('form[data-form=pedido] [data-act=pedItemAdd]'); await wait(100);
+  it=f.querySelectorAll('[data-item]');
+  T('adicionar item cria nova linha', it.length===2);
+  chg(it[1].querySelector('[data-k=prod]'),'__novo'); await wait(100);
+  T('produto novo mostra campo de nome', !it[1].querySelector('[data-k=nome]').closest('.hide'));
+  it[1].querySelector('[data-k=nome]').value='Missô branco';
+  it[1].querySelector('[data-k=qtd]').value='2'; const p1=it[1].querySelector('[data-k=preco]'); p1.value='8'; p1.dispatchEvent(new Event('input',{bubbles:true})); await wait(50);
+  T('total geral do pedido', /181,00/.test(f.querySelector('[data-pedtot]').textContent));
+  f.querySelector('[name=obs]').value='entregar sexta';
+  sub(f); await espera(()=>ks(P+'pedidos/').length===PED0+1);
+  const pd=docs(P+'pedidos/').find(x=>x.fornecedorId==='F1');
+  T('pedido gravado com fornecedor, data e total', pd && pd.fornecedorNome==='Distribuidora Sol' && pd.data===hoje && pd.valor===181 && pd.obs==='entregar sexta');
+  T('itens gravados com quantidade, preço e total', pd && pd.itens.length===2 && pd.itens[0].nome==='Saquê 720 ml' && pd.itens[0].qtd===3 && pd.itens[0].preco===55 && pd.itens[0].total===165 && pd.itens[1].total===16);
+  T('pedido novo começa sem entrega', pd && pd.entregue===false && pd.itens.every(x=>x.recebido===false));
+  T('preço que mudou foi atualizado no cadastro', window.__M[P+'fornProdutos/P1'].preco===55);
+  const misso=docs(P+'fornProdutos/').find(x=>x.nome==='Missô branco');
+  T('produto novo do pedido entrou no cadastro', misso && misso.fornecedorId==='F1' && misso.preco===8 && pd.itens[1].prodId===misso.k.split('/').pop());
+  await wait(300);
+  T('lista mostra o pedido A entregar com o total', /A entregar/.test(txt()) && /181,00/.test(txt()));
+  T('saldo a pagar = total dos pedidos', /Saldo a pagar[\s\S]*181,00/.test(txt()));
+  // conferência da entrega
+  const pid=pd.k.split('/').pop();
+  await clicaAte(`[data-act=pedEntrega][data-id="${pid}"]`,'form[data-form=pedEntrega]');
+  f=document.querySelector('form[data-form=pedEntrega]');
+  T('conferência lista os 2 produtos', f.querySelectorAll('[data-conf]').length===2);
+  T('conferência vem com data de hoje', f.querySelector('[name=entregueEm]').value===hoje);
+  f.querySelector('[name=ok_0]').checked=true; f.querySelector('[name=rec_0]').value='2';
+  sub(f); await espera(()=>window.__M[pd.k].itens[0].recebido===true);
+  let pp=window.__M[pd.k];
+  T('entrega parcial grava visto e quantidade', pp.itens[0].recebido===true && pp.itens[0].qtdRecebida===2 && pp.itens[1].recebido===false && pp.entregue===false);
+  await wait(300);
+  T('lista mostra Parcial', /Parcial/.test(txt()));
+  await clicaAte(`[data-act=pedEntrega][data-id="${pid}"]`,'form[data-form=pedEntrega]');
+  f=document.querySelector('form[data-form=pedEntrega]');
+  T('conferência lembra o que já foi marcado', f.querySelector('[name=ok_0]').checked && f.querySelector('[name=rec_0]').value==='2');
+  f.querySelector('[name=ok_1]').checked=true; sub(f); await espera(()=>window.__M[pd.k].entregue===true);
+  pp=window.__M[pd.k];
+  T('tudo conferido marca pedido entregue com data', pp.entregue===true && pp.entregueEm===hoje && pp.itens[1].qtdRecebida===2);
+  await wait(300);
+  T('lista mostra Entregue com falta', /Entregue com falta/.test(txt()) && /falt(ou|aram) 1/i.test(txt()));
+  // pagamentos em partes
+  await clicaAte('[data-act=pedPagar]','form[data-form=pedPag]');
+  f=document.querySelector('form[data-form=pedPag]');
+  T('pagamento mostra saldo atual', /181,00/.test(f.textContent));
+  const L0=ks(P+'lancamentos/').length;
+  f.querySelector('[name=valor]').value='100'; window.__semForma=true; sub(f); await wait(500); window.__semForma=false;
+  T('pagamento sem forma não grava', ks(P+'lancamentos/').length===L0);
+  f.querySelector('[name=forma]').value='pix'; sub(f); await espera(()=>ks(P+'lancamentos/').length===L0+1);
+  const pg=docs(P+'lancamentos/').find(x=>x.pagForn);
+  T('pagamento vira gasto do fornecedor', pg && pg.tipo==='custo' && pg.setor==='fornecedores' && pg.fornecedorId==='F1' && pg.fornecedorNome==='Distribuidora Sol' && pg.valor===100 && pg.forma==='pix' && pg.data===hoje);
+  await wait(300);
+  T('saldo abate o pagamento', /Saldo a pagar[\s\S]*81,00/.test(txt()) && /Total pago[\s\S]*100,00/.test(txt()));
+  T('pagamento aparece na lista de pagamentos', /Pagamentos/.test(txt()) && /Pix/.test(txt()));
+  await clicaAte('[data-act=pedPagar]','form[data-form=pedPag]');
+  f=document.querySelector('form[data-form=pedPag]'); f.querySelector('[name=valor]').value='81'; f.querySelector('[name=forma]').value='dinheiro';
+  sub(f); await espera(()=>docs(P+'lancamentos/').filter(x=>x.pagForn).length===2);
+  await wait(300);
+  T('saldo zera depois do segundo pagamento', /Saldo a pagar[\s\S]*0,00/.test(txt()) && !/Saldo a pagar[\s\S]{0,80}81,00/.test(txt()));
+  // editar pagamento
+  const pg2=docs(P+'lancamentos/').find(x=>x.pagForn&&x.valor===81), pgid=pg2.k.split('/').pop();
+  await clicaAte(`[data-act=pedPagEditar][data-id="${pgid}"]`,'form[data-form=pedPag]');
+  f=document.querySelector('form[data-form=pedPag]');
+  T('editar pagamento traz valor e forma', f.querySelector('[name=valor]').value==='81,00' && f.querySelector('[name=forma]').value==='dinheiro');
+  f.querySelector('[name=valor]').value='80'; sub(f); await espera(()=>window.__M[pg2.k].valor===80);
+  T('editar pagamento grava novo valor', window.__M[pg2.k].valor===80 && window.__M[pg2.k].pagForn===true);
+  await wait(300);
+  T('saldo recalcula após editar', /Saldo a pagar[\s\S]*1,00/.test(txt()));
+  // editar pedido mantém criadoEm e recalcula
+  window.__M[pd.k].criadoEm=12345;
+  await clicaAte(`[data-act=pedEditar][data-id="${pid}"]`,'form[data-form=pedido]');
+  f=document.querySelector('form[data-form=pedido]'); it=f.querySelectorAll('[data-item]');
+  T('editar pedido traz os 2 itens', it.length===2 && it[0].querySelector('[data-k=qtd]').value==='3');
+  it[0].querySelector('[data-k=qtd]').value='4'; it[0].querySelector('[data-k=qtd]').dispatchEvent(new Event('input',{bubbles:true}));
+  sub(f); await espera(()=>window.__M[pd.k].valor===236);
+  pp=window.__M[pd.k];
+  T('editar pedido recalcula total e mantém criadoEm', pp.valor===236 && pp.criadoEm===12345);
+  T('editar pedido mantém a conferência dos itens que não mudaram', pp.itens[1].recebido===true);
+  // visão de todos os fornecedores
+  chg(document.querySelector('#pedForn'),''); await wait(400);
+  T('visão geral lista o fornecedor com saldo', /Distribuidora Sol/.test(txt()) && /56,00/.test(txt()));
+  // pagamento aparece em Lançamentos
+  await clicaAte('[data-act=setorTab][data-t=lanc]','.brow.fp');
+  await wait(600);
+  T('pagamento aparece nos lançamentos', /Distribuidora Sol/.test(txt()) && /100,00/.test(txt()));
+  // cópia completa inclui as coleções novas
+  T('cópia completa inclui pedidos e produtos', COLS_EMP.includes('pedidos') && COLS_EMP.includes('fornProdutos'));
+}catch(e){T('ERRO '+e.message+' '+(e.stack||'').split('\n')[1],false);} fim();})();

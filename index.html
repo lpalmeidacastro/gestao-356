@@ -111,6 +111,18 @@ input::placeholder{color:var(--t4)}
 input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 auto;accent-color:var(--link);cursor:pointer}
 .tiposck{display:flex;flex-wrap:wrap;gap:8px}
 .tiposck label{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--card2);font-size:14px;cursor:pointer}
+.pitem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px;gap:8px;align-items:end;padding:12px 0;border-top:1px solid var(--line)}
+.pitem .f{margin-bottom:0}.pitem .pi-prod,.pitem .pi-nome{grid-column:1/-1}
+.pi-t{display:flex;flex-direction:column;justify-content:center;min-height:44px;font-size:12px;color:var(--t3)}
+.pi-t b{font-size:15px;font-weight:590;color:var(--t1);font-variant-numeric:tabular-nums}
+.pedtot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line2);border-radius:10px;background:var(--card2);margin-bottom:16px;font-size:14px}
+.pedtot b{font-size:18px;font-weight:590;color:var(--t1);font-variant-numeric:tabular-nums}
+.conf{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.conf .f{margin-bottom:0}
+.ckl{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:14px;color:var(--t2)}
+.ckl input[type=checkbox]{width:22px;height:22px}
+.ckl b{color:var(--t1);font-weight:510}
+@media (max-width:700px){.pitem{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px}.pi-t{grid-column:1/3}.conf{grid-template-columns:minmax(0,1fr) 96px}}
 .hint{font-size:12px;color:var(--t4);margin-top:8px}
 
 /* aviso */
@@ -542,7 +554,7 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
-const APP_VERSAO = 'g356-v36'; // igual ao VERSAO do sw.js (o teste confere)
+const APP_VERSAO = 'g356-v37'; // igual ao VERSAO do sw.js (o teste confere)
 
 /* ============ rede lenta e sem internet ============ */
 // 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
@@ -760,7 +772,7 @@ const Store = {
        free:{ lista:null, pres:{}, meses:[], dia:null, erro:null },
        lanc:{ mes:mesAtual(), lista:null, chave:null, erro:null, tab:'lanc' },
        estoque:{ lista:null, erro:null },
-       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, catemp:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
+       tar:{ lista:null, erro:null, filtro:'abertas' }, metas:{ mapa:null, erro:null }, vendas:{ porMes:null, erro:null }, energia:{ lista:null, mes:mesAtual(), loja:'todas', erro:null }, emp:{ sub:'todos' }, subset:{ ok:false, erro:null }, forn:{ lista:null, erro:null }, ped:{ forn:'', pedidos:null, prods:null, pags:null, erro:null }, catemp:{ lista:null, erro:null }, rel:{ mes:mesAtual(), esc:'geral', ang:'categoria', modo:'dia', dados:null, chave:null, erro:null }, pes:{ mes:mesAtual(), lista:null, chave:null, cats:null, filtro:'todos', erro:null, modo:'dia', hist:null, histChave:null } },
   subs: [],
   set(p) { Object.assign(this.s, p); this.subs.forEach(f => f(this.s)); },
   on(f) { this.subs.push(f); }
@@ -2005,11 +2017,12 @@ function setorHTML(s, set) {
   const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="fornManage">Fornecedores</button><button class="btn" data-act="catsManage">Categorias</button><button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
   const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button></div></div>`;
-  const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'pedidos' ? pedHeadBtns() : `${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button>`}</div></div>`;
+  const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button><button class="${tab === 'pedidos' ? 'on' : ''}" data-act="setorTab" data-t="pedidos">Pedidos</button></div>
     ${tab === 'lanc' ? `<div class="mes" role="group" aria-label="Mês"><button data-act="lmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(L.mes, false))}</span><button data-act="lmes" data-d="1" aria-label="Próximo mês" ${L.mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>` : ''}</div>`;
   const sk = `<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div>`;
   const cardE = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  if (tab === 'pedidos') return pedidosHTML(head, tabs);
   if (tab === 'tarefas') return tarefasHTML(set, head, tabs, Store.s.tar.erro ? `<div class="alert err on" role="alert">${esc(Store.s.tar.erro)} <button class="btn ghost" data-act="tarRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '');
   if (tab === 'estoque') {
     const erro = E.erro ? `<div class="alert err on" role="alert">${esc(E.erro)} <button class="btn ghost" data-act="estRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
@@ -2120,6 +2133,7 @@ async function salvarLanc(f, d) {
     const mes = data.slice(0, 7); let lista = L.lista || [];
     lista = id ? lista.filter(x => x.id !== id) : lista;
     if (mes === L.mes) { const velho = id ? (L.lista.find(x => x.id === id) || {}) : null; lista = lista.concat([{ ...(velho || novo), ...mud, id:ref.id, criadoEm:velho ? (velho.criadoEm || null) : null }]); }
+    if (id && (L.lista.find(x => x.id === id) || {}).pagForn) pedRecarregar();
     invalidarPainel(); fecharModal();
     if (RAPIDO && !id) rapFeito(valor, nomeSetor(d.setor), d.setor);
     Store.set({ lanc:{ ...L, lista, erro:null }, forn:Store.s.forn });
@@ -2281,6 +2295,264 @@ async function salvarTar(f, d) {
     if (id) { await colTar().doc(id).update(mud); lista = T.lista.map(x => x.id === id ? { ...x, ...mud } : x); }
     else { const novo = { ...mud, feita:false, feitaEm:null, criadoPorUid:Store.s.user.uid, criadoEm:TS() }, ref = colTar().doc(); await ref.set(novo); lista = T.lista.concat([{ id:ref.id, ...novo, criadoEm:null }]); }
     fecharModal(); Store.set({ tar:{ ...T, lista, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+/* ============ pedidos a fornecedores (empresa) ============ */
+// empresas/356/fornProdutos/{id}: fornecedorId, nome, preco, criadoPorUid, criadoEm (preço que o fornecedor faz para a 356)
+// empresas/356/pedidos/{id}: fornecedorId, fornecedorNome, data, itens:[{prodId, nome, qtd, preco, total, recebido, qtdRecebida}], valor, obs, entregue, entregueEm, criadoPorUid, criadoEm
+// Pagamentos = lançamentos de gasto com pagForn:true (subsetor Fornecedores): entram nos gastos e abatem o saldo do fornecedor.
+const colPed = () => db.collection(`empresas/${EMPRESA}/pedidos`);
+const colFProd = () => db.collection(`empresas/${EMPRESA}/fornProdutos`);
+const r2 = n => Math.round(n * 100) / 100;
+const dec2 = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const prodsDe = fid => (Store.s.ped.prods || []).filter(x => x.fornecedorId === fid).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+let pedBusca = false;
+async function carregarPedidos() {
+  if (pedBusca || Store.s.ped.pedidos) return;
+  pedBusca = true;
+  try {
+    const [a, b, c] = await Promise.all([colPed().get(), colFProd().get(), colLanc().where('pagForn', '==', true).get()]);
+    const m = q => q.docs.map(d => ({ id:d.id, ...d.data() }));
+    Store.set({ ped:{ ...Store.s.ped, pedidos:m(a), prods:m(b), pags:m(c), erro:null } });
+  } catch (e) { console.error(e); const S = Store.s.ped; Store.set({ ped:{ ...S, pedidos:S.pedidos || [], prods:S.prods || [], pags:S.pags || [], erro:'Não foi possível carregar os pedidos. ' + msgErro(e) } }); }
+  finally { pedBusca = false; }
+}
+const pedRecarregar = () => { Store.s.ped = { ...Store.s.ped, pedidos:null }; };
+function statusPed(p) {
+  const it = p.itens || [];
+  if (p.entregue) return it.some(x => (Number(x.qtdRecebida) || 0) < (Number(x.qtd) || 0)) ? 'falta' : 'entregue';
+  return it.some(x => x.recebido) ? 'parcial' : 'aberto';
+}
+const badgePed = st => st === 'entregue' ? '<span class="badge ok">Entregue</span>' : st === 'falta' ? '<span class="badge warn">Entregue com falta</span>' : st === 'parcial' ? '<span class="badge warn">Parcial</span>' : '<span class="badge">A entregar</span>';
+const faltasPed = p => (p.itens || []).filter(x => x.recebido && (Number(x.qtdRecebida) || 0) < (Number(x.qtd) || 0)).map(x => 'faltou ' + fmtQtd(r2(x.qtd - (Number(x.qtdRecebida) || 0))) + ' ' + x.nome);
+const ordPed = lista => porLancamento(lista);
+function resumoForn(fid) {
+  const S = Store.s.ped, ps = (S.pedidos || []).filter(x => !fid || x.fornecedorId === fid), pg = (S.pags || []).filter(x => !fid || x.fornecedorId === fid);
+  const total = r2(ps.reduce((a, x) => a + (Number(x.valor) || 0), 0)), pago = r2(pg.reduce((a, x) => a + (Number(x.valor) || 0), 0));
+  return { ps, pg, total, pago, saldo:r2(total - pago), aEnt:ps.filter(x => !x.entregue).length };
+}
+const nPed = n => n + (n === 1 ? ' pedido' : ' pedidos'), nPag = n => n + (n === 1 ? ' pagamento' : ' pagamentos');
+function pedidosHTML(head, tabs) {
+  const S = Store.s.ped, FL = Store.s.forn.lista;
+  const erro = S.erro ? `<div class="alert err on" role="alert">${esc(S.erro)} <button class="btn ghost" data-act="pedRecarregar" style="height:32px;padding:0 8px">Tentar de novo</button></div>` : '';
+  if (S.pedidos === null || FL === null) return head + `<div class="stack">${tabs}<div class="skbox" style="height:160px"></div></div>`;
+  if (!FL.length) return head + erro + `<div class="stack">${tabs}<section class="panel" style="margin:0"><div class="pb" style="text-align:center;padding:40px 20px;color:var(--t3);font-size:14px">Nenhum fornecedor cadastrado ainda. Cadastre o fornecedor para lançar pedidos.<div style="margin-top:16px"><button class="btn pri" data-act="fornManage">Cadastrar fornecedor</button></div></div></section></div>`;
+  const fid = FL.some(x => x.id === S.forn) ? S.forn : '', R = resumoForn(fid);
+  const selF = `<label class="f noprint" style="margin:0;max-width:420px"><span>Fornecedor</span><select id="pedForn"><option value="">Todos os fornecedores</option>${FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>`;
+  const card = (cor, label, valor, q) => `<div class="rc est"><span class="l"><span class="dot" style="background:${cor}"></span>${label}</span><span class="v">${valor}</span><span class="q">${q}</span></div>`;
+  const cards = `<div class="rcards">${card('var(--pur)', 'Total em pedidos', brl(R.total), nPed(R.ps.length))}${card('var(--ok)', 'Total pago', brl(R.pago), nPag(R.pg.length))}${card(R.saldo > 0 ? 'var(--warn)' : 'var(--ok)', 'Saldo a pagar', brl(Math.max(0, R.saldo)), R.saldo < 0 ? 'crédito de ' + brl(-R.saldo) : R.saldo > 0 ? 'falta pagar' : 'nada a pagar')}${card('var(--t3)', 'A entregar', R.aEnt, R.aEnt === 1 ? 'pedido sem entrega completa' : 'pedidos sem entrega completa')}</div>`;
+  const vazio = t => `<div class="pb" style="text-align:center;padding:32px 20px;color:var(--t3);font-size:14px">${t}</div>`;
+  if (!fid) {
+    const linhas = FL.map(f => ({ f, r:resumoForn(f.id) })).filter(x => x.r.ps.length || x.r.pg.length).sort((a, b) => b.r.saldo - a.r.saldo);
+    const tab = linhas.length ? `<div class="scroll-x"><table><thead><tr><th>Fornecedor</th><th>Pedidos</th><th>Pago</th><th>Saldo a pagar</th><th>A entregar</th><th></th></tr></thead><tbody>${linhas.map(({ f, r }) =>
+      `<tr><td style="color:var(--t1)">${esc(f.nome)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.total)}</td><td style="font-variant-numeric:tabular-nums">${brl(r.pago)}</td><td style="font-variant-numeric:tabular-nums;color:var(--t1)">${r.saldo < 0 ? 'crédito ' + brl(-r.saldo) : brl(r.saldo)}</td><td>${r.aEnt}</td><td><button class="btn" data-act="pedAbrir" data-id="${esc(f.id)}" style="height:36px">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : vazio('Nenhum pedido ainda. Use "+ Novo pedido".');
+    return head + erro + `<div class="stack">${tabs}${selF}${cards}<section class="panel" style="margin:0"><div class="ph2"><h3>Por fornecedor</h3></div>${tab}</section></div>`;
+  }
+  const rowsP = ordPed(R.ps).map(p => {
+    const st = statusPed(p), it = p.itens || [], fal = faltasPed(p);
+    const sub = [it.length + (it.length === 1 ? ' produto' : ' produtos') + ': ' + it.map(x => fmtQtd(x.qtd) + ' ' + x.nome).join(', ')].concat(fal, p.obs ? [p.obs] : []);
+    return `<div class="brow" role="row">
+      <div class="bnome"><b>Pedido de ${dataBRfull(p.data)}</b><span title="${esc(sub.join(' · '))}">${esc(sub.join(' · '))}</span></div>
+      <div class="bven">${dataBR(p.data)}${p.entregueEm ? `<span style="display:block">entrega ${dataBR(p.entregueEm)}</span>` : ''}</div><div class="bval">${brl(p.valor)}</div><div class="bst">${badgePed(st)}</div>
+      <div class="bact"><button class="btn ${st === 'aberto' || st === 'parcial' ? 'pg' : ''}" data-act="pedEntrega" data-id="${esc(p.id)}" style="height:44px">Conferir</button>
+        <button class="ib" data-act="pedEditar" data-id="${esc(p.id)}" aria-label="Editar pedido">${ico('edit')}</button></div></div>`;
+  }).join('');
+  const rowsG = ordPed(R.pg).map(g => `<div class="brow" role="row">
+      <div class="bnome"><b>Pagamento</b><span>${esc(g.descricao && g.descricao !== 'Pagamento de pedidos' ? g.descricao : 'abate do saldo')}</span></div>
+      <div class="bven">${dataBR(g.data)}</div><div class="bval">${brl(g.valor)}</div><div class="bst">${esc(formaNome(g.forma) || '—')}</div>
+      <div class="bact"><button class="ib" data-act="pedPagEditar" data-id="${esc(g.id)}" aria-label="Editar pagamento">${ico('edit')}</button></div></div>`).join('');
+  return head + erro + `<div class="stack">${tabs}${selF}${cards}
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Pedidos</h3></div><div role="table" style="--act:150px">
+      <div class="brow hd" role="row"><span>Pedido</span><span>Data</span><span>Total</span><span>Entrega</span><span></span></div>
+      ${rowsP || vazio('Nenhum pedido com este fornecedor. Use "+ Novo pedido".')}</div></section>
+    <section class="panel" style="margin:0"><div class="ph2"><h3>Pagamentos</h3></div><div role="table" style="--act:60px">
+      <div class="brow hd" role="row"><span>Pagamento</span><span>Data</span><span>Valor</span><span>Forma</span><span></span></div>
+      ${rowsG || vazio('Nenhum pagamento ainda. Use "Registrar pagamento". Cada pagamento abate do saldo e entra nos Lançamentos como gasto.')}</div></section></div>`;
+}
+function pedHeadBtns() {
+  const fid = (Store.s.forn.lista || []).some(x => x.id === Store.s.ped.forn) ? Store.s.ped.forn : '';
+  return `${fid ? '<button class="btn" data-act="pedProdutos">Produtos do fornecedor</button>' : ''}<button class="btn" data-act="pedPagar">Registrar pagamento</button><button class="btn pri" data-act="pedNovo">+ Novo pedido</button>`;
+}
+/* cadastro de produtos e preços de um fornecedor */
+function fornProdHTML(fid) {
+  const f = (Store.s.forn.lista || []).find(x => x.id === fid), admin = Store.s.perfil.papel === 'admin';
+  const rows = prodsDe(fid).map(p => `<form data-form="fornProd" data-id="${esc(p.id)}" data-f="${esc(fid)}" novalidate class="pitem" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto ${admin ? 'auto' : ''}">
+      <label class="f"><span>Produto</span><input name="nome" value="${esc(p.nome)}" maxlength="80" autocomplete="off"></label>
+      <label class="f"><span>Preço (R$)</span><input name="preco" inputmode="decimal" value="${esc(dec2(p.preco))}" autocomplete="off"></label>
+      <button class="btn" type="submit" style="height:44px">Salvar</button>${admin ? `<button type="button" class="btn bad" data-act="fornProdDel" data-id="${esc(p.id)}" style="height:44px">Remover</button>` : ''}</form>`).join('');
+  return `<p class="muted" style="font-size:13px">Produtos que <b style="color:var(--t1)">${esc(f ? f.nome : '')}</b> vende para a 356 e o preço de cada um. No pedido, escolher o produto já preenche o preço.</p>
+    <div class="alert" role="alert" id="fpAlert"></div>${rows || '<p class="muted" style="font-size:14px;margin:12px 0">Nenhum produto cadastrado para este fornecedor.</p>'}
+    <form data-form="fornProd" data-f="${esc(fid)}" novalidate style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+      <label class="f"><span>Produto novo</span><input name="nome" maxlength="80" placeholder="Ex.: Saquê Junmai 720 ml" autocomplete="off"></label>
+      <label class="f"><span>Preço (R$)</span><input name="preco" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+      <div class="acoes"><button class="btn pri full" type="submit">Adicionar produto</button></div></form>`;
+}
+async function salvarFornProd(f, d) {
+  const av = $('#fpAlert'), erro = m => { av.className = 'alert err on'; av.textContent = m; av.scrollIntoView({ block:'nearest' }); };
+  const fid = f.dataset.f, id = f.dataset.id, nome = (d.nome || '').trim(), ptxt = String(d.preco || '').trim(), preco = parseValor(ptxt);
+  if (nome.length < 2) return erro('Digite o nome do produto.');
+  if (!ptxt || !(preco >= 0)) return erro('Digite o preço. Exemplo: 12,50');
+  if (prodsDe(fid).some(p => p.id !== id && nomeIgual(p.nome, nome))) return erro('Esse produto já está cadastrado neste fornecedor.');
+  const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+  try {
+    const S = Store.s.ped; let prods = S.prods || [];
+    if (id) { await colFProd().doc(id).update({ nome, preco }); prods = prods.map(p => p.id === id ? { ...p, nome, preco } : p); }
+    else { const ref = colFProd().doc(), doc = { fornecedorId:fid, nome, preco, criadoPorUid:Store.s.user.uid, criadoEm:TS() }; await ref.set(doc); prods = prods.concat([{ id:ref.id, ...doc, criadoEm:null }]); }
+    Store.s.ped = { ...S, prods }; abrirModal('Produtos do fornecedor', fornProdHTML(fid));
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+/* formulário do pedido */
+function itemPedHTML(fid, x, ix) {
+  const prods = prodsDe(fid), sel = x ? x.prodId : '', existe = !!sel && prods.some(p => p.id === sel);
+  const opts = '<option value="">Escolha o produto</option>' + prods.map(p => `<option value="${esc(p.id)}" ${existe && sel === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')
+    + (x && !existe ? `<option value="__livre" selected>${esc(x.nome)}</option>` : '') + '<option value="__novo">+ Produto novo…</option>';
+  return `<div class="pitem" data-item ${ix != null ? `data-ix="${ix}"` : ''} ${x ? `data-nome="${esc(x.nome)}" data-pid="${esc(x.prodId || '')}"` : ''}>
+    <label class="f pi-prod"><span>Produto</span><select data-k="prod">${opts}</select></label>
+    <label class="f pi-nome hide"><span>Nome do produto novo</span><input data-k="nome" maxlength="80" placeholder="Ex.: Missô branco 500 g" autocomplete="off"></label>
+    <label class="f pi-q"><span>Quantidade</span><input data-k="qtd" inputmode="decimal" value="${x ? esc(fmtQtd(x.qtd)) : ''}" autocomplete="off"></label>
+    <label class="f pi-p"><span>Preço un. (R$)</span><input data-k="preco" inputmode="decimal" value="${x ? esc(dec2(x.preco)) : ''}" placeholder="0,00" autocomplete="off"></label>
+    <div class="pi-t"><span>Total</span><b data-k="tot">${x ? brl(x.total) : '—'}</b></div>
+    <button type="button" class="ib" data-act="pedItemDel" aria-label="Tirar este produto">${ico('close')}</button></div>`;
+}
+function formPedido(p) {
+  const FL = Store.s.forn.lista || [], fid = p ? p.fornecedorId : (FL.some(x => x.id === Store.s.ped.forn) ? Store.s.ped.forn : ''), admin = Store.s.perfil.papel === 'admin';
+  const itens = p && (p.itens || []).length ? p.itens : [null];
+  return `<form data-form="pedido" data-id="${p ? esc(p.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    <label class="f"><span>Fornecedor</span><select name="fornecedorId">${fid ? '' : '<option value="">Escolha o fornecedor</option>'}${FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Data do pedido</span><input name="data" type="date" value="${p ? esc(p.data) : hojeStr()}" max="${hojeStr()}"></label>
+    <div data-itens>${itens.map((x, i) => itemPedHTML(fid, x, p ? i : null)).join('')}</div>
+    <button type="button" class="btn full" data-act="pedItemAdd" style="margin:12px 0 16px">+ Adicionar produto</button>
+    <div class="pedtot"><span>Total do pedido</span><b data-pedtot>${brl(p ? p.valor : 0)}</b></div>
+    <label class="ckl" style="margin-bottom:12px"><input type="checkbox" name="attPreco" checked>Guardar no cadastro do fornecedor os preços que mudaram</label>
+    <label class="f"><span>Observação (opcional)</span><input name="obs" value="${p ? esc(p.obs || '') : ''}" maxlength="120" placeholder="Ex.: entregar na sexta, NF 4821" autocomplete="off"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">${p ? 'Salvar alterações' : 'Salvar pedido'}</button>
+    ${p && admin ? `<button type="button" class="btn bad full" data-act="pedApagar" data-id="${esc(p.id)}">Apagar pedido</button>` : ''}</div></form>`;
+}
+function recalcPed(f) {
+  let soma = 0;
+  f.querySelectorAll('[data-item]').forEach(L => {
+    const q = parseValor(L.querySelector('[data-k=qtd]').value), pt = L.querySelector('[data-k=preco]').value.trim(), pr = parseValor(pt);
+    const ok = q > 0 && pt !== '' && pr >= 0, t = ok ? r2(q * pr) : 0; soma += t;
+    L.querySelector('[data-k=tot]').textContent = ok ? brl(t) : '—';
+  });
+  f.querySelector('[data-pedtot]').textContent = brl(r2(soma));
+}
+function lerItensPed(f, fid, velho, attPreco) {
+  const prods = prodsDe(fid), itens = [], novos = [], att = [];
+  const linhas = Array.from(f.querySelectorAll('[data-item]'));
+  for (let i = 0; i < linhas.length; i++) {
+    const L = linhas[i], g = k => L.querySelector(`[data-k=${k}]`), n = i + 1;
+    const sel = g('prod').value, qtxt = g('qtd').value.trim(), ptxt = g('preco').value.trim();
+    if (!sel && !qtxt && !ptxt) continue;
+    let nome, prodId = null;
+    if (!sel) return { erro:`Escolha o produto da linha ${n}.` };
+    if (sel === '__novo') {
+      nome = g('nome').value.trim();
+      if (nome.length < 2) return { erro:`Digite o nome do produto novo da linha ${n}.` };
+      if (prods.some(p => nomeIgual(p.nome, nome)) || novos.some(x => nomeIgual(x.nome, nome))) return { erro:`O produto "${nome}" já está cadastrado. Escolha ele na lista.` };
+    } else if (sel === '__livre') { nome = L.dataset.nome || ''; prodId = L.dataset.pid || null; }
+    else { const p = prods.find(x => x.id === sel); if (!p) return { erro:`Escolha o produto da linha ${n} de novo.` }; nome = p.nome; prodId = p.id; }
+    const qtd = parseValor(qtxt), preco = parseValor(ptxt);
+    if (!(qtd > 0)) return { erro:`Digite a quantidade de ${nome} (linha ${n}).` };
+    if (!ptxt || !(preco >= 0)) return { erro:`Digite o preço de ${nome} (linha ${n}). Exemplo: 12,50` };
+    const ant = velho && L.dataset.ix != null ? (velho.itens || [])[Number(L.dataset.ix)] : null, mesmo = !!ant && ant.nome === nome;
+    if (sel === '__novo') novos.push({ i:itens.length, nome, preco });
+    else if (prodId && attPreco) { const p = prods.find(x => x.id === prodId); if (p && Number(p.preco) !== preco) att.push({ id:prodId, preco }); }
+    itens.push({ prodId, nome, qtd, preco, total:r2(qtd * preco), recebido:mesmo ? !!ant.recebido : false, qtdRecebida:mesmo && ant.qtdRecebida != null ? ant.qtdRecebida : null });
+  }
+  if (!itens.length) return { erro:'Escolha pelo menos um produto para o pedido.' };
+  return { itens, novos, att };
+}
+async function salvarPedido(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; av.scrollIntoView({ block:'nearest' }); };
+  const forn = (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId), data = d.data || '';
+  if (!forn) return erro('Escolha o fornecedor.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data do pedido.');
+  if (data > hojeStr()) return erro('A data do pedido não pode ser no futuro.');
+  const id = f.dataset.id, S = Store.s.ped, velho = id ? (S.pedidos || []).find(x => x.id === id) : null;
+  const R = lerItensPed(f, forn.id, velho, d.attPreco === 'on'); if (R.erro) return erro(R.erro);
+  const valor = r2(R.itens.reduce((a, x) => a + x.total, 0));
+  if (!(valor > 0)) return erro('O total do pedido precisa ser maior que zero.');
+  btn.disabled = true;
+  try {
+    const b = db.batch(), uid = Store.s.user.uid, novosP = [];
+    R.novos.forEach(n => { const ref = colFProd().doc(), doc = { fornecedorId:forn.id, nome:n.nome, preco:n.preco, criadoPorUid:uid, criadoEm:TS() }; b.set(ref, doc); R.itens[n.i].prodId = ref.id; novosP.push({ id:ref.id, ...doc, criadoEm:null }); });
+    R.att.forEach(a => b.update(colFProd().doc(a.id), { preco:a.preco }));
+    const entregue = R.itens.every(x => x.recebido);
+    const mud = { fornecedorId:forn.id, fornecedorNome:forn.nome, data, itens:R.itens, valor, obs:(d.obs || '').trim(), entregue, entregueEm:velho && R.itens.some(x => x.recebido) ? (velho.entregueEm || null) : null };
+    const ref = id ? colPed().doc(id) : colPed().doc(), novo = id ? null : { ...mud, criadoPorUid:uid, criadoEm:TS() };
+    if (id) b.update(ref, mud); else b.set(ref, novo);
+    await b.commit();
+    const S2 = Store.s.ped, A = new Map(R.att.map(a => [a.id, a.preco]));
+    const pedidos = id ? (S2.pedidos || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S2.pedidos || []).concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    const prods = (S2.prods || []).map(p => A.has(p.id) ? { ...p, preco:A.get(p.id) } : p).concat(novosP);
+    fecharModal(); Store.set({ ped:{ ...S2, forn:forn.id, pedidos, prods, erro:null } });
+  } catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+/* conferência da entrega: visto + quantidade que chegou */
+function formEntrega(p) {
+  return `<form data-form="pedEntrega" data-id="${esc(p.id)}" novalidate>
+    <div class="alert" role="alert"></div>
+    <p class="muted" style="font-size:13px;margin-bottom:8px">Pedido de ${dataBRfull(p.data)} · ${esc(p.fornecedorNome || '')}. Marque o visto em cada produto que chegou. Se chegou quantidade diferente, troque o número.</p>
+    ${(p.itens || []).map((x, i) => `<div class="conf" data-conf><label class="ckl"><input type="checkbox" name="ok_${i}" ${x.recebido ? 'checked' : ''}><span><b>${esc(x.nome)}</b> · pedido ${esc(fmtQtd(x.qtd))}</span></label>
+      <label class="f"><span>Chegou</span><input name="rec_${i}" inputmode="decimal" value="${esc(fmtQtd(x.qtdRecebida != null ? x.qtdRecebida : x.qtd))}" autocomplete="off" aria-label="Quantidade que chegou de ${esc(x.nome)}"></label></div>`).join('')}
+    <label class="f" style="margin-top:12px"><span>Data da entrega</span><input name="entregueEm" type="date" value="${esc(p.entregueEm || hojeStr())}" max="${hojeStr()}"></label>
+    <div class="acoes"><button class="btn pri full" type="submit">Salvar conferência</button></div></form>`;
+}
+async function salvarEntrega(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  const S = Store.s.ped, p = (S.pedidos || []).find(x => x.id === f.dataset.id); if (!p) return erro('Pedido não encontrado. Feche e abra de novo.');
+  const itens = [];
+  for (let i = 0; i < (p.itens || []).length; i++) {
+    const x = p.itens[i], ok = d['ok_' + i] === 'on', rec = parseValor(d['rec_' + i]);
+    if (ok && !(rec >= 0)) return erro(`Digite quanto chegou de ${x.nome}.`);
+    itens.push({ ...x, recebido:ok, qtdRecebida:ok ? rec : null });
+  }
+  const algum = itens.some(x => x.recebido), data = d.entregueEm || '';
+  if (algum && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data da entrega.');
+  if (algum && data > hojeStr()) return erro('A data da entrega não pode ser no futuro.');
+  const mud = { itens, entregue:itens.every(x => x.recebido), entregueEm:algum ? data : null };
+  btn.disabled = true;
+  try { await colPed().doc(p.id).update(mud); const S2 = Store.s.ped; fecharModal(); Store.set({ ped:{ ...S2, pedidos:S2.pedidos.map(x => x.id === p.id ? { ...x, ...mud } : x), erro:null } }); }
+  catch (e) { erro(msgErro(e)); btn.disabled = false; }
+}
+/* pagamento ao fornecedor: vira gasto (lançamento) com pagForn:true */
+function formPagForn(g) {
+  const FL = Store.s.forn.lista || [], fid = g ? g.fornecedorId : (FL.some(x => x.id === Store.s.ped.forn) ? Store.s.ped.forn : ''), admin = Store.s.perfil.papel === 'admin';
+  const R = fid ? resumoForn(fid) : null;
+  return `<form data-form="pedPag" data-id="${g ? esc(g.id) : ''}" novalidate>
+    <div class="alert" role="alert"></div>
+    ${R ? `<div class="pedtot"><span>Saldo a pagar${g ? ' (contando este pagamento)' : ''}</span><b>${R.saldo < 0 ? 'crédito ' + brl(-R.saldo) : brl(R.saldo)}</b></div>` : ''}
+    <label class="f"><span>Fornecedor</span><select name="fornecedorId">${fid ? '' : '<option value="">Escolha o fornecedor</option>'}${FL.map(x => `<option value="${esc(x.id)}" ${fid === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label class="f"><span>Valor pago (R$)</span><input name="valor" inputmode="decimal" value="${g ? esc(dec2(g.valor)) : ''}" placeholder="1.234,56" autocomplete="off"></label>
+    <label class="f"><span>Data do pagamento</span><input name="data" type="date" value="${g ? esc(g.data) : hojeStr()}" max="${hojeStr()}"></label>
+    ${formaCampo(g && g.forma)}
+    <label class="f"><span>Observação (opcional)</span><input name="descricao" value="${g && g.descricao !== 'Pagamento de pedidos' ? esc(g.descricao || '') : ''}" maxlength="120" placeholder="Ex.: 2ª parcela" autocomplete="off"></label>
+    <p class="muted" style="font-size:12px;margin-bottom:12px">O pagamento abate do saldo e entra nos Lançamentos como gasto do subsetor Fornecedores. Não lance esse gasto de novo à mão.</p>
+    <div class="acoes"><button class="btn pri full" type="submit">${g ? 'Salvar alterações' : 'Registrar pagamento'}</button>
+    ${g && admin ? `<button type="button" class="btn bad full" data-act="pedPagApagar" data-id="${esc(g.id)}">Apagar pagamento</button>` : ''}</div></form>`;
+}
+function depoisDePagar() { invalidarPainel(); Store.s.lanc = { ...Store.s.lanc, chave:null }; }
+async function salvarPagForn(f, d) {
+  const btn = f.querySelector('button[type=submit]'), av = f.querySelector('.alert');
+  const erro = m => { av.className = 'alert err on'; av.textContent = m; av.scrollIntoView({ block:'nearest' }); };
+  const forn = (Store.s.forn.lista || []).find(x => x.id === d.fornecedorId), valor = parseValor(d.valor), data = d.data || '';
+  if (!forn) return erro('Escolha o fornecedor.');
+  if (!(valor > 0)) return erro('Digite o valor pago. Exemplo: 1.234,56');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return erro('Escolha a data do pagamento.');
+  if (data > hojeStr()) return erro('A data do pagamento não pode ser no futuro.');
+  const FP = lerForma(d, false); if (FP.erro) return erro(FP.erro);
+  const id = f.dataset.id;
+  const mud = { tipo:'custo', setor:ID_FORN, valor, data, categoria:'Mercadoria', descricao:(d.descricao || '').trim() || 'Pagamento de pedidos', juros:0, forma:FP.f, fornecedorId:forn.id, fornecedorNome:forn.nome, pagForn:true };
+  btn.disabled = true;
+  try {
+    const ref = id ? colLanc().doc(id) : colLanc().doc(), novo = id ? null : { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
+    if (id) await ref.update(mud); else await ref.set(novo);
+    const S = Store.s.ped, pags = id ? (S.pags || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S.pags || []).concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    depoisDePagar(); fecharModal(); Store.set({ ped:{ ...S, forn:forn.id, pags, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
 function tarefasCard(s) {
@@ -3069,7 +3341,7 @@ V.rapido = (s, etapa) => {
 
 /* ============ cópia completa (baixar no aparelho) ============ */
 // Terceira cópia dos dados, nas mãos do dono: um arquivo com TUDO (empresa e, para Luiz/Eliana, o pessoal).
-const COLS_EMP = ['subsetores','vendasMes','categorias','fornecedores','produtos','lancamentos','comprovantes','metas','tarefas','energia','boletos','contas','contasPag','freelancers','presencas','jornal'];
+const COLS_EMP = ['subsetores','vendasMes','categorias','fornecedores','produtos','lancamentos','comprovantes','metas','tarefas','energia','boletos','contas','contasPag','freelancers','presencas','pedidos','fornProdutos','jornal'];
 const COLS_PES = ['movimentos','anexos','categorias','contas','contasPag','jornal'];
 function paraJSON(v, d = 0) {
   if (v === null || typeof v !== 'object' || d > 20) return v;
@@ -3136,6 +3408,7 @@ function render() {
     if (s.contas.defs === null) carregarContas(false, 'contas');
     if (s.free.lista === null) carregarFree();
     if (s.tar.lista === null) carregarTar();
+    if (id === 'empresa' && s.lanc.tab === 'pedidos' && s.ped.pedidos === null) carregarPedidos();
   }
   ultimaFase = s.fase;
 }
@@ -3365,6 +3638,7 @@ const acoes = {
     const id = el.dataset.id, L = Store.s.lanc;
     try {
       const b = db.batch(); b.delete(colLanc().doc(id)); b.delete(db.doc(`empresas/${EMPRESA}/comprovantes/l_${id}`)); await b.commit();
+      if ((L.lista.find(x => x.id === id) || {}).pagForn) pedRecarregar();
       invalidarPainel(); fecharModal(); Store.set({ lanc:{ ...L, lista:L.lista.filter(x => x.id !== id), erro:null } });
     } catch (e) { fecharModal(); Store.set({ lanc:{ ...L, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
   },
@@ -3411,6 +3685,50 @@ const acoes = {
   vendaMes(el) { abrirModal('Venda do mês', formVendaMes(el.dataset.mes || mesAtual())); },
   tarNovo(el) { abrirModal('Nova tarefa', formTar(null, el.dataset.setor || subAtualId())); },
   tarEditar(el) { const x = (Store.s.tar.lista || []).find(t => t.id === el.dataset.id); if (x) abrirModal('Editar tarefa', formTar(x)); },
+  pedAbrir(el) { Store.set({ ped:{ ...Store.s.ped, forn:el.dataset.id } }); window.scrollTo(0, 0); },
+  pedRecarregar() { pedRecarregar(); Store.set({ ped:{ ...Store.s.ped, erro:null } }); },
+  pedNovo() { if (!(Store.s.forn.lista || []).length) { fornFiltroTipo = ''; abrirModal('Fornecedores', fornModalHTML()); return; } abrirModal('Novo pedido', formPedido(null)); },
+  pedEditar(el) { const p = (Store.s.ped.pedidos || []).find(x => x.id === el.dataset.id); if (p) abrirModal('Editar pedido', formPedido(p)); },
+  pedEntrega(el) { const p = (Store.s.ped.pedidos || []).find(x => x.id === el.dataset.id); if (p) abrirModal('Conferir entrega', formEntrega(p)); },
+  pedItemAdd(el) { const f = el.closest('form'); f.querySelector('[data-itens]').insertAdjacentHTML('beforeend', itemPedHTML(f.querySelector('[name=fornecedorId]').value, null, null)); },
+  pedItemDel(el) {
+    const f = el.closest('form'), L = el.closest('[data-item]');
+    if (f.querySelectorAll('[data-item]').length > 1) L.remove(); else L.outerHTML = itemPedHTML(f.querySelector('[name=fornecedorId]').value, null, null);
+    recalcPed(f);
+  },
+  pedProdutos() { const fid = Store.s.ped.forn; if (fid) abrirModal('Produtos do fornecedor', fornProdHTML(fid)); },
+  fornProdDel(el) {
+    const p = (Store.s.ped.prods || []).find(x => x.id === el.dataset.id); if (!p) return;
+    abrirModal('Remover produto', `<p style="font-size:14px;margin-bottom:16px">Remover <b style="color:var(--t1)">${esc(p.nome)}</b> do cadastro deste fornecedor? Os pedidos antigos continuam com o nome e o preço.</p>
+      <div class="acoes"><button class="btn bad full" data-act="fornProdDelOk" data-id="${esc(p.id)}">Remover produto</button><button class="btn full" data-act="pedProdutos">Voltar</button></div>`);
+  },
+  async fornProdDelOk(el) {
+    const id = el.dataset.id, S = Store.s.ped;
+    try { await colFProd().doc(id).delete(); Store.s.ped = { ...S, prods:(S.prods || []).filter(x => x.id !== id) }; abrirModal('Produtos do fornecedor', fornProdHTML(S.forn)); }
+    catch (e) { fecharModal(); Store.set({ ped:{ ...S, erro:'Não foi possível remover. ' + msgErro(e) } }); }
+  },
+  pedApagar(el) {
+    const p = (Store.s.ped.pedidos || []).find(x => x.id === el.dataset.id); if (!p) return;
+    abrirModal('Apagar pedido', `<p style="font-size:14px;margin-bottom:16px">Apagar o pedido de <b style="color:var(--t1)">${dataBRfull(p.data)}</b> (${brl(p.valor)}) de ${esc(p.fornecedorNome || '')}? Ele sai do saldo do fornecedor. Fica guardado no histórico.</p>
+      <div class="acoes"><button class="btn bad full" data-act="pedApagarOk" data-id="${esc(p.id)}">Apagar pedido</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async pedApagarOk(el) {
+    const id = el.dataset.id, S = Store.s.ped;
+    try { await colPed().doc(id).delete(); fecharModal(); Store.set({ ped:{ ...S, pedidos:S.pedidos.filter(x => x.id !== id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ ped:{ ...S, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
+  pedPagar() { if (!(Store.s.forn.lista || []).length) { fornFiltroTipo = ''; abrirModal('Fornecedores', fornModalHTML()); return; } abrirModal('Registrar pagamento', formPagForn(null)); },
+  pedPagEditar(el) { const g = (Store.s.ped.pags || []).find(x => x.id === el.dataset.id); if (g) abrirModal('Editar pagamento', formPagForn(g)); },
+  pedPagApagar(el) {
+    const g = (Store.s.ped.pags || []).find(x => x.id === el.dataset.id); if (!g) return;
+    abrirModal('Apagar pagamento', `<p style="font-size:14px;margin-bottom:16px">Apagar o pagamento de <b style="color:var(--t1)">${brl(g.valor)}</b> em ${dataBRfull(g.data)}? Ele volta para o saldo a pagar e sai dos Lançamentos.</p>
+      <div class="acoes"><button class="btn bad full" data-act="pedPagApagarOk" data-id="${esc(g.id)}">Apagar pagamento</button><button class="btn full" data-act="fecharModal">Cancelar</button></div>`);
+  },
+  async pedPagApagarOk(el) {
+    const id = el.dataset.id, S = Store.s.ped;
+    try { await colLanc().doc(id).delete(); depoisDePagar(); fecharModal(); Store.set({ ped:{ ...S, pags:S.pags.filter(x => x.id !== id), erro:null } }); }
+    catch (e) { fecharModal(); Store.set({ ped:{ ...S, erro:'Não foi possível apagar. ' + msgErro(e) } }); }
+  },
   tarFiltro(el) { Store.set({ tar:{ ...Store.s.tar, filtro:el.dataset.f } }); },
   tarRecarregar() { Store.set({ tar:{ lista:null, erro:null, filtro:Store.s.tar.filtro } }); },
   async tarFeita(el) {
@@ -3597,6 +3915,10 @@ document.addEventListener('submit', async e => {
   if (f.dataset.form === 'meta') { await salvarMeta(f, d); return; }
   if (f.dataset.form === 'vendaMes') { await salvarVendaMes(f, d); return; }
   if (f.dataset.form === 'tarefa') { await salvarTar(f, d); return; }
+  if (f.dataset.form === 'pedido') { await salvarPedido(f, d); return; }
+  if (f.dataset.form === 'pedEntrega') { await salvarEntrega(f, d); return; }
+  if (f.dataset.form === 'pedPag') { await salvarPagForn(f, d); return; }
+  if (f.dataset.form === 'fornProd') { await salvarFornProd(f, d); return; }
   if (f.dataset.form === 'energia') { await salvarEnergia(f, d); return; }
   if (f.dataset.form === 'pessoal') { await salvarPes(f, d); return; }
   if (f.dataset.form === 'pesCat') { await salvarPesCat(f, d); return; }
@@ -3607,6 +3929,20 @@ document.addEventListener('submit', async e => {
   } catch (err) { aviso(msgErro(err)); btn.disabled = false; }
 });
 
+document.addEventListener('input', e => { const f = e.target.closest && e.target.closest('form[data-form=pedido]'); if (f && e.target.dataset.k) recalcPed(f); });
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t && t.id === 'pedForn') { Store.set({ ped:{ ...Store.s.ped, forn:t.value } }); return; }
+  const f = t && t.closest ? t.closest('form[data-form=pedido]') : null; if (!f) return;
+  if (t.name === 'fornecedorId') { f.querySelector('[data-itens]').innerHTML = itemPedHTML(t.value, null, null); recalcPed(f); return; }
+  if (t.dataset.k === 'prod') {
+    const L = t.closest('[data-item]'), p = prodsDe(f.querySelector('[name=fornecedorId]').value).find(x => x.id === t.value);
+    L.querySelector('.pi-nome').classList.toggle('hide', t.value !== '__novo');
+    if (p) L.querySelector('[data-k=preco]').value = dec2(p.preco);
+    if (t.value === '__novo') L.querySelector('[data-k=nome]').focus();
+    recalcPed(f);
+  }
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal .md')) fecharModal(); });
 document.addEventListener('input', e => {
   const f = e.target.closest && e.target.closest('form[data-form=energia]'); if (!f) return;
