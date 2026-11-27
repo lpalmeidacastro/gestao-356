@@ -4,7 +4,7 @@
   "private": true,
   "description": "Manda os avisos dos Lembretes do app 356 no minuto certo (Cloud Function chamada a cada minuto pelo Cloud Scheduler).",
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "dependencies": {
     "@google-cloud/functions-framework": "^3.4.0",
     "firebase-admin": "^12.7.0"
