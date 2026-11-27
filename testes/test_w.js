@@ -22,4 +22,24 @@ const nomes=()=>Array.from(document.querySelectorAll('.brow:not(.hd) .bnome b'))
   click('[data-act=pesEditar][data-id=q1]'); await wait(500);
   f=document.querySelector('form[data-form=pessoal]'); f.querySelector('[name=valor]').value='6'; f.querySelector('[name=descricao]').value='PPrimeiro editado'; sub(f); await wait(900);
   T('pessoal: editar o mais antigo não muda a posição', g()==='PTerceiro,PSegundo,PPrimeiro editado');
+  // lançados agora (mesma sessão): editar o mais antigo também não pode subir
+  const novoP=async d=>{click('[data-act=pesNovo][data-t=gasto]'); await wait(400); const f=document.querySelector('form[data-form=pessoal]');
+    f.querySelector('[name=valor]').value='3'; f.querySelector('[name=descricao]').value=d; f.querySelector('[name=data]').value=hj; f.querySelector('[name=forma]').value='pix'; sub(f); await wait(900);};
+  await novoP('NUm'); await novoP('NDois');
+  const h=()=>nomes().filter(x=>/^N(Um|Dois)/.test(x)).join();
+  T('pessoal: dois novos, último em cima', h()==='NDois,NUm');
+  const idUm=document.querySelector('.brow:not(.hd)')&&Array.from(document.querySelectorAll('.brow:not(.hd)')).find(r=>(r.querySelector('.bnome b')||{}).textContent==='NUm').querySelector('[data-act=pesEditar]').dataset.id;
+  click('[data-act=pesEditar][data-id="'+idUm+'"]'); await wait(500);
+  f=document.querySelector('form[data-form=pessoal]'); f.querySelector('[name=descricao]').value='NUm editado'; sub(f); await wait(900);
+  T('pessoal: editar o novo mais antigo não sobe para o topo', h()==='NDois,NUm editado');
+  location.hash='#/empresa'; await wait(1300);
+  const novoE=async d=>{click('[data-act=lancNovo]'); await wait(500); const f=document.querySelector('form[data-form=lancamento]');
+    chg(f.querySelector('[name=setor]'),'bebidas'); f.querySelector('[name=valor]').value='4'; f.querySelector('[name=descricao]').value=d; f.querySelector('[name=data]').value=hj; sub(f); await wait(900);};
+  await novoE('EUm'); await novoE('EDois');
+  const k=()=>nomes().filter(x=>/^E(Um|Dois)/.test(x)).join();
+  T('empresa: dois novos, último em cima', k()==='EDois,EUm');
+  const idE=Array.from(document.querySelectorAll('.brow:not(.hd)')).find(r=>(r.querySelector('.bnome b')||{}).textContent==='EUm').querySelector('[data-act=lancEditar]').dataset.id;
+  click('[data-act=lancEditar][data-id="'+idE+'"]'); await wait(500);
+  f=document.querySelector('form[data-form=lancamento]'); f.querySelector('[name=descricao]').value='EUm editado'; sub(f); await wait(900);
+  T('empresa: editar o novo mais antigo não sobe para o topo', k()==='EDois,EUm editado');
 }catch(e){T('ERRO '+e.message,false);} fim();})();

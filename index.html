@@ -560,7 +560,7 @@ firebase.initializeApp(FB);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
-const APP_VERSAO = 'g356-v40'; // igual ao VERSAO do sw.js (o teste confere)
+const APP_VERSAO = 'g356-v41'; // igual ao VERSAO do sw.js (o teste confere)
 
 /* ============ rede lenta e sem internet ============ */
 // 1) O banco fica guardado no aparelho: abre e mostra dados mesmo sem internet.
@@ -1371,7 +1371,7 @@ function contasPseudo(s) {
   for (let i = -3; i <= 0; i++) r = r.concat(ocorrencias(C.defs, C.pag, mesAdd(m0, i)));
   return r;
 }
-const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'todas' ? 'on' : ''}" data-act="abaConta" data-a="todas">Todas</button><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div></div>`;
+const abasContas = aba => `<div class="tabs2 noprint" style="margin-bottom:16px"><div class="seg" role="group" aria-label="Tipo de conta"><button class="${aba === 'todas' ? 'on' : ''}" data-act="abaConta" data-a="todas">Todas</button><button class="${aba === 'boletos' ? 'on' : ''}" data-act="abaConta" data-a="boletos">Boletos</button><button class="${aba === 'contas' ? 'on' : ''}" data-act="abaConta" data-a="contas">Contas agendadas</button></div><button class="btn" data-act="contasPdf">Baixar PDF</button></div>`;
 /* calendário de Contas a pagar: um dia = tudo que vence nele; cor pela situação do dia (atrasada manda) */
 function calItens(s, k, aba) {
   const m0 = mesAtual(); let con = [];
@@ -1528,6 +1528,14 @@ async function fornResolve(d) {
 }
 const fornTxt = x => x && x.fornecedorNome && x.descricao !== x.fornecedorNome ? ' · ' + esc(x.fornecedorNome) : '';
 const jurosCampo = (v, cls) => `<label class="f ${cls || ''}" data-juros><span>Juros pagos, se houver (R$) <span class="muted" style="font-weight:400">· já dentro do valor</span></span><input name="juros" inputmode="decimal" value="${Number(v) > 0 ? esc(String(v).replace('.', ',')) : ''}" placeholder="0,00" autocomplete="off"></label>`;
+// editar: o item fica no mesmo lugar (mesmo criadoEm, mesma posição); novo: entra com a hora local até o servidor responder
+function trocaNoLugar(lista, id, novo, mud) {
+  if (!id) return novo ? lista.concat([novo]) : lista;
+  const i = lista.findIndex(x => x.id === id);
+  if (i < 0) return novo ? lista.concat([{ ...novo, criadoEm:null }]) : lista;
+  if (!novo) return lista.filter(x => x.id !== id);
+  const out = lista.slice(); out[i] = { ...lista[i], ...mud }; return out;
+}
 const msCriado = x => { const c = x && x.criadoEm; if (c && typeof c.toMillis === 'function') return c.toMillis(); return typeof c === 'number' && c > 0 ? c : Infinity; };
 const porLancamento = lista => lista.map((x, i) => [x, i]).sort((a, b) => { const da = b[0].data || '', db = a[0].data || ''; if (da !== db) return da.localeCompare(db); const ma = msCriado(a[0]), mb = msCriado(b[0]); if (ma !== mb) return ma === Infinity ? -1 : mb === Infinity ? 1 : mb - ma; return b[1] - a[1]; }).map(p => p[0]);
 const FORMAS = [['dinheiro', 'Dinheiro'], ['pix', 'Pix'], ['debito', 'Cartão de débito'], ['credito', 'Cartão de crédito'], ['boleto', 'Boleto']];
@@ -2024,7 +2032,7 @@ function setorHTML(s, set) {
   const subChips = `<div class="tabs2 noprint"><div class="chips" role="group" aria-label="Subsetor">${chipSub('todos', 'Todos')}${SETORES.map(x => chipSub(x.id, x.nome)).join('')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="fornManage">Fornecedores</button><button class="btn" data-act="catsManage">Categorias</button><button class="btn" data-act="subsManage">Subsetores</button></div></div>`;
   const head = `<div class="ph"><div><div class="ctx">Empresa · visível para Luiz, Eliana e gerente</div><h1>${todos ? 'Empresa' : 'Empresa · ' + esc(set.nome)}</h1></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'pedidos' ? pedHeadBtns() : `${tab === 'lanc' ? `<button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button>`}</div></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${tab === 'pedidos' ? pedHeadBtns() : `${tab === 'lanc' ? `<button class="btn" data-act="lancPdf">Baixar PDF</button><button class="btn" data-act="vendaMes" data-mes="${L.mes}">Venda do mês</button>` : ''}<button class="btn pri" data-act="${tab === 'estoque' ? 'prodNovo' : tab === 'tarefas' ? 'tarNovo' : 'lancNovo'}" data-setor="${todos ? '' : esc(set.id)}">${tab === 'estoque' ? '+ Novo produto' : tab === 'tarefas' ? '+ Nova tarefa' : '+ Novo lançamento'}</button>`}</div></div>`;
   const tabs = subChips + `<div class="tabs2"><div class="seg" role="group" aria-label="Seção"><button class="${tab === 'lanc' ? 'on' : ''}" data-act="setorTab" data-t="lanc">Lançamentos</button><button class="${tab === 'estoque' ? 'on' : ''}" data-act="setorTab" data-t="estoque">Estoque</button><button class="${tab === 'tarefas' ? 'on' : ''}" data-act="setorTab" data-t="tarefas">Tarefas</button><button class="${tab === 'pedidos' ? 'on' : ''}" data-act="setorTab" data-t="pedidos">Pedidos</button></div>
     ${tab === 'lanc' ? `<div class="mes" role="group" aria-label="Mês"><button data-act="lmes" data-d="-1" aria-label="Mês anterior">${ico('esq')}</button><span aria-live="polite">${esc(mesNome(L.mes, false))}</span><button data-act="lmes" data-d="1" aria-label="Próximo mês" ${L.mes < mesAtual() ? '' : 'disabled'}>${ico('dir')}</button></div>` : ''}</div>`;
   const sk = `<div class="rcards"><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div><div class="skbox"></div></div>`;
@@ -2137,9 +2145,7 @@ async function salvarLanc(f, d) {
       if (foto) b.set(db.doc(`empresas/${EMPRESA}/comprovantes/l_${ref.id}`), { dataUrl:foto.dataUrl, em:TS(), por:Store.s.user.uid });
       await b.commit();
     }
-    const mes = data.slice(0, 7); let lista = L.lista || [];
-    lista = id ? lista.filter(x => x.id !== id) : lista;
-    if (mes === L.mes) { const velho = id ? (L.lista.find(x => x.id === id) || {}) : null; lista = lista.concat([{ ...(velho || novo), ...mud, id:ref.id, criadoEm:velho ? (velho.criadoEm || null) : null }]); }
+    const mes = data.slice(0, 7), lista = trocaNoLugar(L.lista || [], id, mes === L.mes ? { ...(novo || {}), ...mud, id:ref.id, criadoEm:Date.now() } : null, mud);
     if (id && (L.lista.find(x => x.id === id) || {}).pagForn) pedRecarregar();
     invalidarPainel(); fecharModal();
     if (RAPIDO && !id) rapFeito(valor, nomeSetor(d.setor), d.setor);
@@ -2383,7 +2389,7 @@ function pedidosHTML(head, tabs) {
 }
 function pedHeadBtns() {
   const fid = (Store.s.forn.lista || []).some(x => x.id === Store.s.ped.forn) ? Store.s.ped.forn : '';
-  return `${fid ? '<button class="btn" data-act="pedProdutos">Produtos do fornecedor</button>' : ''}<button class="btn" data-act="pedPagar">Registrar pagamento</button><button class="btn pri" data-act="pedNovo">+ Novo pedido</button>`;
+  return `${fid ? '<button class="btn" data-act="pedProdutos">Produtos do fornecedor</button>' : ''}<button class="btn" data-act="pedPdf">Baixar PDF</button><button class="btn" data-act="pedPagar">Registrar pagamento</button><button class="btn pri" data-act="pedNovo">+ Novo pedido</button>`;
 }
 /* cadastro de produtos e preços de um fornecedor */
 function fornProdHTML(fid) {
@@ -2498,7 +2504,7 @@ async function salvarPedido(f, d) {
     if (id) b.update(ref, mud); else b.set(ref, novo);
     await b.commit();
     const S2 = Store.s.ped, A = new Map(R.att.map(a => [a.id, a.preco]));
-    const pedidos = id ? (S2.pedidos || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S2.pedidos || []).concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    const pedidos = id ? (S2.pedidos || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S2.pedidos || []).concat([{ id:ref.id, ...novo, criadoEm:Date.now() }]);
     const prods = (S2.prods || []).map(p => A.has(p.id) ? { ...p, preco:A.get(p.id) } : p).concat(novosP);
     fecharModal(); Store.set({ ped:{ ...S2, forn:forn.id, pedidos, prods, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
@@ -2563,7 +2569,7 @@ async function salvarPagForn(f, d) {
   try {
     const ref = id ? colLanc().doc(id) : colLanc().doc(), novo = id ? null : { ...mud, temComprovante:false, criadoPorUid:Store.s.user.uid, criadoEm:TS() };
     if (id) await ref.update(mud); else await ref.set(novo);
-    const S = Store.s.ped, pags = id ? (S.pags || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S.pags || []).concat([{ id:ref.id, ...novo, criadoEm:null }]);
+    const S = Store.s.ped, pags = id ? (S.pags || []).map(x => x.id === id ? { ...x, ...mud } : x) : (S.pags || []).concat([{ id:ref.id, ...novo, criadoEm:Date.now() }]);
     depoisDePagar(); fecharModal(); Store.set({ ped:{ ...S, forn:forn.id, pags, erro:null } });
   } catch (e) { erro(msgErro(e)); btn.disabled = false; }
 }
@@ -3093,9 +3099,7 @@ async function salvarPes(f, d) {
       anx.forEach((a, k) => b.set(colPesAnx().doc(), { ...a, movId:ref.id, ord:Date.now() + k, em:TS(), por:Store.s.user.uid }));
       await b.commit();
     }
-    const velhoP = id ? (P.lista || []).find(x => x.id === id) : null;
-    let lista = (P.lista || []).filter(x => x.id !== ref.id);
-    if (data.slice(0, 7) === P.mes) lista = lista.concat([{ ...(velhoP || {}), ...mud, id:ref.id, criadoEm:velhoP ? (velhoP.criadoEm || null) : null }]);
+    const lista = trocaNoLugar(P.lista || [], id, data.slice(0, 7) === P.mes ? { ...mud, id:ref.id, criadoEm:Date.now() } : null, mud);
     fecharModal();
     if (RAPIDO && !id) rapFeito(valor, 'Pessoal', '__pes');
     Store.set({ pes:{ ...Store.s.pes, lista, erro:null, histChave:null } });
@@ -3573,6 +3577,359 @@ function aviso(msg, tipo = 'err') {
   const a = $('#aviso'); if (!a) return;
   a.className = 'alert on ' + tipo; a.textContent = msg;
 }
+/* ============ PDF gerado no app (sem biblioteca) ============ */
+// O "Imprimir" do navegador não faz nada no app instalado na Tela de Início do iPhone.
+// Por isso o PDF é montado aqui: A4, letras Helvetica (acentos pela tabela WinAnsi), logo 356 Gestão em JPEG.
+// No celular abre o "Compartilhar" (Salvar em Arquivos, WhatsApp, Imprimir); no computador baixa o arquivo.
+const PDF_W = 595.28, PDF_H = 841.89, PDF_M = 36, PDF_RODA = 24;
+const PDF_LARG = [ // larguras (1/1000 do tamanho) dos caracteres 32..126: Helvetica e Helvetica-Bold
+  '278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584',
+  '278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584'
+].map(s => s.split(',').map(Number));
+const PDF_WIN = { 0x2013:0x96, 0x2014:0x97, 0x2022:0x95, 0x2026:0x85, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x20AC:0x80, 0x2212:0x2D, 0x202F:0x20, 0x2009:0x20 };
+const PDF_COR = { tx:'#16161a', t2:'#3c3c44', t3:'#6b6b75', linha:'#dcdce3', fundo:'#f2f2f6', ok:'#0a7d4f', err:'#b3173a', warn:'#8a5200', marca:'#5e6ad2' };
+function pdfLarg(s, negrito, tam) {
+  let w = 0; const T = PDF_LARG[negrito ? 1 : 0];
+  for (const ch of String(s).normalize('NFD')) {
+    const c = ch.codePointAt(0);
+    if (c >= 0x300 && c <= 0x36f) continue;
+    w += c >= 32 && c <= 126 ? T[c - 32] : c === 0xA0 || c === 0x202F ? 278 : c === 0x2014 || c === 0x2026 ? 1000 : c === 0xB7 ? 278 : 556;
+  }
+  return w * tam / 1000;
+}
+function pdfStr(s) { // texto do PDF: bytes WinAnsi, com ( ) \ escapados
+  let o = '';
+  for (const ch of String(s).normalize('NFC')) {
+    let c = ch.codePointAt(0);
+    if (c > 255) c = PDF_WIN[c] || 0x3F;
+    if (c < 32) c = 32;
+    if (c === 0x28 || c === 0x29 || c === 0x5C) o += '\\';
+    o += String.fromCharCode(c);
+  }
+  return '(' + o + ')';
+}
+const pdfRgb = h => [1, 3, 5].map(i => (parseInt(h.slice(i, i + 2), 16) / 255).toFixed(3)).join(' ');
+const pdfN = n => (Math.round(n * 100) / 100).toString();
+// quebra o texto em linhas que cabem na largura; corta com "…" depois de maxL linhas
+function pdfQuebra(s, larg, tam, negrito, maxL = 3) {
+  const pal = String(s || '').replace(/\s+/g, ' ').trim().split(' '); if (!pal[0]) return [''];
+  const L = []; let at = '';
+  const cabe = t => pdfLarg(t, negrito, tam) <= larg;
+  for (let p of pal) {
+    const t = at ? at + ' ' + p : p;
+    if (cabe(t)) { at = t; continue; }
+    if (at) L.push(at);
+    while (!cabe(p) && p.length > 1) { let k = p.length - 1; while (k > 1 && !cabe(p.slice(0, k))) k--; L.push(p.slice(0, k)); p = p.slice(k); }
+    at = p;
+  }
+  if (at) L.push(at);
+  if (L.length > maxL) { let u = L[maxL - 1] + '…'; while (u.length > 1 && !cabe(u)) u = u.slice(0, -2) + '…'; L.length = maxL; L[maxL - 1] = u; }
+  return L;
+}
+let pdfLogo = null, pdfLogoP = null;
+function prepLogoPdf() { // logo claro em JPEG (fundo branco), preparado antes do toque para o "Compartilhar" abrir na hora
+  if (pdfLogoP) return pdfLogoP;
+  pdfLogoP = new Promise(res => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const W = 360, H = Math.max(1, Math.round(W * im.naturalHeight / im.naturalWidth)), c = document.createElement('canvas');
+        c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H); g.drawImage(im, 0, 0, W, H);
+        const d = c.toDataURL('image/jpeg', 0.92); if (/^data:image\/jpeg;base64,/.test(d)) pdfLogo = { w:W, h:H, bin:atob(d.split(',')[1]) };
+      } catch (e) { pdfLogo = null; }
+      res(pdfLogo);
+    };
+    im.onerror = () => { pdfLogoP = null; res(null); };
+    im.src = 'logo-356-claro.png';
+  });
+  return pdfLogoP;
+}
+// documento: pdfNovo(titulo, sub) → .cards() .secao() .tabela() .texto() .espaco() → .bytes()
+function pdfNovo(titulo, sub) {
+  const pgs = [], LW = PDF_W - 2 * PDF_M, logo = pdfLogo; let ops = null, y = 0;
+  const T = (x, yy, s, tam, neg, cor) => ops.push(`BT /${neg ? 'F2' : 'F1'} ${tam} Tf ${pdfRgb(cor || PDF_COR.tx)} rg ${pdfN(x)} ${pdfN(PDF_H - yy)} Td ${pdfStr(s)} Tj ET`);
+  const TD = (xd, yy, s, tam, neg, cor) => T(xd - pdfLarg(s, neg, tam), yy, s, tam, neg, cor); // alinhado à direita
+  const TC = (xc, yy, s, tam, neg, cor) => T(xc - pdfLarg(s, neg, tam) / 2, yy, s, tam, neg, cor);
+  const R = (x, yy, w, h, cor) => ops.push(`${pdfRgb(cor)} rg ${pdfN(x)} ${pdfN(PDF_H - yy - h)} ${pdfN(w)} ${pdfN(h)} re f`);
+  const RB = (x, yy, w, h, cor) => ops.push(`${pdfRgb(cor)} RG 0.6 w ${pdfN(x)} ${pdfN(PDF_H - yy - h)} ${pdfN(w)} ${pdfN(h)} re S`);
+  const LI = (x1, y1, x2, y2, cor, e = 0.5) => ops.push(`${pdfRgb(cor)} RG ${e} w ${pdfN(x1)} ${pdfN(PDF_H - y1)} m ${pdfN(x2)} ${pdfN(PDF_H - y2)} l S`);
+  function topo() {
+    const h = 30;
+    if (logo) { const w = h * logo.w / logo.h; ops.push(`q ${pdfN(w)} 0 0 ${pdfN(h)} ${pdfN(PDF_M)} ${pdfN(PDF_H - PDF_M - h)} cm /Im1 Do Q`); }
+    else T(PDF_M, PDF_M + 20, '356 Gestão', 16, true);
+    const tl = pdfQuebra(titulo, LW * 0.62, 13, true, 1)[0], sl = pdfQuebra(sub || '', LW * 0.62, 9, false, 1)[0];
+    TD(PDF_W - PDF_M, PDF_M + 12, tl, 13, true);
+    if (sl) TD(PDF_W - PDF_M, PDF_M + 26, sl, 9, false, PDF_COR.t3);
+    LI(PDF_M, PDF_M + h + 8, PDF_W - PDF_M, PDF_M + h + 8, PDF_COR.tx, 1);
+    y = PDF_M + h + 24;
+  }
+  function novaPag() { ops = []; pgs.push(ops); topo(); }
+  const limite = () => PDF_H - PDF_M - PDF_RODA;
+  function precisa(h) { if (y + h > limite()) { novaPag(); return true; } return false; }
+  novaPag();
+  const D = {
+    espaco(h = 8) { y += h; return D; },
+    secao(t, nota) {
+      precisa(nota ? 48 : 36); y += 6; T(PDF_M, y + 10, pdfQuebra(t, LW, 11.5, true, 1)[0], 11.5, true); y += 15;
+      if (nota) { pdfQuebra(nota, LW, 8.5, false, 3).forEach(l => { T(PDF_M, y + 8, l, 8.5, false, PDF_COR.t3); y += 11; }); }
+      y += 5; return D;
+    },
+    texto(s, op = {}) {
+      const tam = op.tam || 9, neg = !!op.b, lh = tam * 1.35;
+      pdfQuebra(s, LW, tam, neg, op.max || 40).forEach(l => { precisa(lh); T(PDF_M, y + tam, l, tam, neg, op.c || PDF_COR.t2); y += lh; });
+      y += 4; return D;
+    },
+    // cartões: [{ l:'rótulo', v:'valor', q:'detalhe', c:'#cor do valor' }], até 4 por linha
+    cards(lista) {
+      const L = lista.filter(c => c && (c.l || c.v)); if (!L.length) return D;
+      const por = Math.min(4, L.length), gap = 8, w = (LW - gap * (por - 1)) / por, h = 50;
+      for (let i = 0; i < L.length; i += por) {
+        precisa(h + gap);
+        L.slice(i, i + por).forEach((c, k) => {
+          const x = PDF_M + k * (w + gap); RB(x, y, w, h, PDF_COR.linha);
+          T(x + 8, y + 13, pdfQuebra(c.l || '', w - 16, 7.5, false, 1)[0], 7.5, false, PDF_COR.t3);
+          let tv = 13; while (tv > 8 && pdfLarg(c.v || '', true, tv) > w - 16) tv -= 0.5;
+          T(x + 8, y + 30, pdfQuebra(c.v || '', w - 16, tv, true, 1)[0], tv, true, c.c || PDF_COR.tx);
+          if (c.q) T(x + 8, y + 43, pdfQuebra(c.q, w - 16, 7.5, false, 1)[0], 7.5, false, PDF_COR.t3);
+        });
+        y += h + gap;
+      }
+      y += 4; return D;
+    },
+    // tabela: cols [{ t:'Título', al:'l'|'r'|'c' }]; linhas: [célula...] ou { total:true, cells:[...] }
+    // célula: texto ou { t:'texto', s:'2ª linha cinza', b:negrito, c:'#cor' }
+    tabela(cols, linhas, op = {}) {
+      const tam = op.tam || 8.5, ts = tam - 1, pad = 5, n = cols.length;
+      const cel = v => v && typeof v === 'object' ? { t:String(v.t == null ? '' : v.t), s:v.s ? String(v.s) : '', b:!!v.b, c:v.c } : { t:String(v == null ? '' : v), s:'' };
+      const rows = linhas.map(r => Array.isArray(r) ? { cells:r.map(cel) } : { ...r, cells:r.cells.map(cel) });
+      // largura natural de cada coluna; a 1ª (descrição) fica com o que sobrar
+      const nat = cols.map((c, i) => Math.min(LW * (i ? 0.3 : 0.6), 2 * pad + 1 + Math.max(pdfLarg(c.t, true, tam - 0.5), ...rows.map(r => { const x = r.cells[i] || { t:'', s:'' }; return Math.max(pdfLarg(x.t, x.b || r.total, tam), pdfLarg(x.s, false, ts)); }))));
+      // mínimo de cada coluna: a maior palavra do título e o maior valor curto (não quebra "Pedido" nem "R$ 1.234,56")
+      const minW = cols.map((c, i) => 2 * pad + 1 + Math.max(...c.t.split(' ').map(w => pdfLarg(w, true, tam - 0.5)), ...rows.map(r => { const x = r.cells[i]; return x && x.t.length <= 18 ? pdfLarg(x.t, x.b || r.total, tam) : 0; })));
+      const outros = nat.slice(1).reduce((a, b) => a + b, 0), w0 = Math.max(LW * 0.26, LW - outros);
+      const W = [w0].concat(nat.slice(1).map((v, k) => Math.max(minW[k + 1], outros + w0 > LW ? v * (LW - w0) / outros : v)));
+      W[0] = n === 1 ? LW : Math.max(LW * 0.16, LW - W.slice(1).reduce((a, b) => a + b, 0));
+      const X = W.map((_, i) => PDF_M + W.slice(0, i).reduce((a, b) => a + b, 0));
+      const escreve = (i, yy, s, tamx, neg, cor) => { const al = cols[i].al || (i ? 'r' : 'l'); if (al === 'r') TD(X[i] + W[i] - pad, yy, s, tamx, neg, cor); else if (al === 'c') TC(X[i] + W[i] / 2, yy, s, tamx, neg, cor); else T(X[i] + pad, yy, s, tamx, neg, cor); };
+      const cab = () => {
+        const hl = cols.map((c, i) => pdfQuebra(c.t, W[i] - 2 * pad, tam - 0.5, true, 2)), h = Math.max(...hl.map(l => l.length)) * (tam + 2) + 2 * pad - 1;
+        R(PDF_M, y, LW, h, PDF_COR.fundo);
+        hl.forEach((ls, i) => ls.forEach((l, k) => escreve(i, y + pad + (tam - 1) + k * (tam + 2), l, tam - 0.5, true, PDF_COR.t3)));
+        y += h;
+      };
+      precisa(40); cab();
+      rows.forEach(r => {
+        const ls = r.cells.map((x, i) => ({ m:pdfQuebra(x.t, W[i] - 2 * pad, tam, x.b || r.total, 3), s:x.s ? pdfQuebra(x.s, W[i] - 2 * pad, ts, false, 2) : [] }));
+        const h = Math.max(...ls.map(l => l.m.length * (tam * 1.3) + l.s.length * (ts * 1.3))) + 2 * pad - 2;
+        if (precisa(h)) cab();
+        if (r.total) LI(PDF_M, y, PDF_M + LW, y, PDF_COR.t3, 0.8);
+        ls.forEach((l, i) => {
+          const x = r.cells[i]; let yy = y + pad + tam - 1;
+          l.m.forEach(t => { escreve(i, yy, t, tam, x.b || r.total, x.c || PDF_COR.tx); yy += tam * 1.3; });
+          l.s.forEach(t => { escreve(i, yy, t, ts, false, PDF_COR.t3); yy += ts * 1.3; });
+        });
+        y += h; LI(PDF_M, y, PDF_M + LW, y, PDF_COR.linha);
+      });
+      y += 10; return D;
+    },
+    bytes() { // rodapé com página X de Y e montagem do arquivo
+      const quem = (Store.s.user && Store.s.user.email) || '', agora = new Date(), hh = pad(agora.getHours()) + ':' + pad(agora.getMinutes());
+      pgs.forEach((o, i) => { ops = o; LI(PDF_M, PDF_H - PDF_M - 12, PDF_W - PDF_M, PDF_H - PDF_M - 12, PDF_COR.linha); T(PDF_M, PDF_H - PDF_M, `356 Gestão · gerado em ${dataBRfull(hojeStr())} às ${hh}${quem ? ' por ' + quem : ''}`, 7.5, false, PDF_COR.t3); TD(PDF_W - PDF_M, PDF_H - PDF_M, `página ${i + 1} de ${pgs.length}`, 7.5, false, PDF_COR.t3); });
+      return pdfMontar(pgs, logo);
+    }
+  };
+  return D;
+}
+function pdfMontar(pgs, logo) {
+  const objs = [], add = s => { objs.push(s); return objs.length; };
+  const cat = add(''), pags = add('');
+  const f1 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  const f2 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  const im = logo ? add(`<< /Type /XObject /Subtype /Image /Width ${logo.w} /Height ${logo.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logo.bin.length} >>\nstream\n${logo.bin}\nendstream`) : 0;
+  const kids = pgs.map(o => {
+    const c = o.join('\n'), ci = add(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`);
+    return add(`<< /Type /Page /Parent ${pags} 0 R /MediaBox [0 0 ${PDF_W} ${PDF_H}] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >>${im ? ` /XObject << /Im1 ${im} 0 R >>` : ''} >> /Contents ${ci} 0 R >>`);
+  });
+  objs[cat - 1] = `<< /Type /Catalog /Pages ${pags} 0 R >>`;
+  objs[pags - 1] = `<< /Type /Pages /Kids [${kids.map(k => k + ' 0 R').join(' ')}] /Count ${kids.length} >>`;
+  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'; const off = [];
+  objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + off.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length + 1} /Root ${cat} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const u = new Uint8Array(out.length); for (let i = 0; i < out.length; i++) u[i] = out.charCodeAt(i) & 255;
+  return u;
+}
+let pdfPendente = null;
+const pdfNomeArq = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '.pdf';
+function pdfBaixar(file) {
+  const url = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = url; a.download = file.name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+async function pdfEntregar(D, nome) {
+  const bytes = D.bytes(), file = new File([bytes], pdfNomeArq(nome), { type:'application/pdf' });
+  window.__pdf356 = { nome:file.name, bytes }; // último PDF gerado (usado pelos testes)
+  const toque = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+  if (toque && navigator.canShare && navigator.share) {
+    let ok = false; try { ok = navigator.canShare({ files:[file] }); } catch (e) { ok = false; }
+    if (ok) {
+      try { await navigator.share({ files:[file], title:file.name }); return; }
+      catch (e) {
+        if (e && e.name === 'AbortError') return; // a pessoa fechou o Compartilhar
+        pdfPendente = file; // o iPhone exige um toque novo: mostra um botão
+        abrirModal('PDF pronto', `<p style="font-size:14px;margin-bottom:16px">O arquivo <b style="color:var(--t1)">${esc(file.name)}</b> está pronto.</p>
+          <div class="acoes"><button class="btn pri full" data-act="pdfCompartilhar">Salvar ou enviar PDF</button><button class="btn full" data-act="fecharModal">Fechar</button></div>`);
+        return;
+      }
+    }
+  }
+  pdfBaixar(file);
+}
+async function gerarPdf(monta, nome) { // monta() devolve o documento pronto; o logo já fica preparado antes
+  if (!pdfLogo) await prepLogoPdf();
+  try { await pdfEntregar(monta(), nome); }
+  catch (e) { console.error(e); aviso('Não foi possível gerar o PDF. ' + (e && e.message ? e.message : '')); }
+}
+
+/* PDF a partir da tela que está aberta: cartões, quadros, tabelas e listas (gráficos e botões ficam de fora) */
+const pdfTx = el => el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+const PDF_PULA = '.noprint,.skbox,.alert,.ccpanel,.tabs2,.printonly,svg,button:not(.rc),select,input,textarea,label,.ph,.tipline,.gr,.bact,.fact,.lgd,.callg,.mh';
+function pdfCelula(c) {
+  if (c.matches('.bnome')) return { t:pdfTx(c.querySelector('b')) || pdfTx(c), s:pdfTx(c.querySelector('span')) };
+  const cl = c.cloneNode(true), subs = Array.from(cl.querySelectorAll(':scope > span:not(.badge), :scope > .bdif, :scope > small'));
+  const s = subs.map(pdfTx).filter(Boolean).join(' · '); subs.forEach(x => x.remove());
+  const t = pdfTx(cl); return t ? { t, s } : { t:s, s:'' };
+}
+function pdfLista(D, rt) { // lista em linhas (role=table)
+  const linhas = Array.from(rt.querySelectorAll(':scope > [role=row]:not(.hd)'));
+  if (!linhas.length) { const v = pdfTx(rt.querySelector('.pb')); if (v) D.texto(v, { c:PDF_COR.t3 }); return; }
+  const util = r => Array.from(r.children).filter(k => !k.matches('.bact,.fact,.noprint'));
+  const hd = rt.querySelector(':scope > .hd'), n = Math.max(...linhas.map(r => util(r).length));
+  const tit = hd ? util(hd).map(pdfTx) : [];
+  const cols = Array.from({ length:n }, (_, i) => ({ t:tit[i] || '', al:i ? 'c' : 'l' }));
+  D.tabela(cols, linhas.map(r => { const c = util(r).map(pdfCelula); while (c.length < n) c.push(''); return c; }));
+}
+function pdfTabela(D, t) {
+  const ths = Array.from(t.querySelectorAll('thead th')), trs = Array.from(t.querySelectorAll('tbody tr'));
+  const usa = ths.map((th, i) => !!pdfTx(th) || trs.some(tr => tr.children[i] && pdfTx(tr.children[i]) && !tr.children[i].querySelector('button')));
+  const cols = ths.map((th, i) => ({ t:pdfTx(th), al:i ? 'r' : 'l' })).filter((_, i) => usa[i]);
+  if (!cols.length || !trs.length) return;
+  D.tabela(cols, trs.map(tr => {
+    const tds = Array.from(tr.children).filter((_, i) => usa[i]), tot = tds[0] && tds[0].querySelector('b') && pdfTx(tds[0].querySelector('b')) === pdfTx(tds[0]);
+    return { total:!!tot, cells:tds.map(td => pdfTx(td)) };
+  }));
+}
+function pdfCards(D, el) {
+  D.cards(Array.from(el.querySelectorAll(':scope > .rc')).map(rc => ({ l:pdfTx(rc.querySelector('.l')), v:pdfTx(rc.querySelector('.v')), q:pdfTx(rc.querySelector('.q')) })));
+}
+function pdfAnda(D, el, dentro) {
+  for (const k of el.children) {
+    if (k.matches(PDF_PULA)) continue;
+    if (k.matches('.rcards')) { pdfCards(D, k); continue; }
+    if (k.matches('table')) { pdfTabela(D, k); continue; }
+    if (k.matches('[role=table]')) { pdfLista(D, k); continue; }
+    if (!dentro && k.matches('section.panel, .box')) { const h = k.querySelector('.ph2 h3, .bh h2, h3, h2'); if (h) D.secao(pdfTx(h)); pdfAnda(D, k, true); continue; }
+    if (k.matches('.ph2, .bh')) continue;
+    if (k.querySelector(':scope > .meta')) { D.tabela([{ t:'Item' }, { t:'Valor', al:'r' }], Array.from(k.querySelectorAll(':scope > .meta')).map(m => [pdfTx(m.querySelector('.r span')), pdfTx(m.querySelector('.r b'))])); continue; }
+    if (dentro && !k.children.length || k.matches('.pb,p') && !k.querySelector('table,[role=table],.meta,.rcards')) { const t = pdfTx(k); if (t) D.texto(t, { c:PDF_COR.t3 }); continue; }
+    pdfAnda(D, k, dentro);
+  }
+}
+function pdfDaTela(titulo, sub, nome) {
+  const raiz = document.querySelector('#root .stack') || document.querySelector('#root');
+  return gerarPdf(() => { const D = pdfNovo(titulo, sub); pdfAnda(D, raiz, false); return D; }, nome);
+}
+
+/* PDF de pedidos a fornecedores: um pedido, todos, ou todos com pagamentos e diferenças na entrega */
+const PED_ST = { entregue:'Entregue', falta:'Entregue com falta', parcial:'Entrega parcial', aberto:'A entregar' };
+const pedCron = l => porLancamento(l).reverse(); // do mais antigo para o mais novo
+const saldoTxtP = s => s < 0 ? 'crédito ' + brl(-s) : brl(s);
+function pdfItensPed(D, p) {
+  const it = p.itens || [], real = valorReal(p), dif = r2((Number(p.valor) || 0) - real);
+  const cols = [{ t:'Produto' }, { t:'Pedido', al:'r' }, { t:'Preço', al:'r' }, { t:'Total pedido', al:'r' }, { t:'Chegou', al:'r' }, { t:'Total que chegou', al:'r' }, { t:'Diferença', al:'r' }];
+  const rows = it.map(x => {
+    const q = Number(x.qtd) || 0, pr = Number(x.preco) || 0, tp = Number(x.total) || r2(q * pr), qr = Number(x.qtdRecebida) || 0, tr_ = x.recebido ? r2(qr * pr) : null, d = x.recebido ? r2(tp - tr_) : 0;
+    return [x.nome || '—', fmtQtd(q), brl(pr), brl(tp), x.recebido ? fmtQtd(qr) : { t:'a conferir', c:PDF_COR.t3 }, x.recebido ? brl(tr_) : { t:'—', c:PDF_COR.t3 }, d ? { t:difTxt(d), c:PDF_COR.warn, b:true } : x.recebido ? { t:'ok', c:PDF_COR.ok } : { t:'—', c:PDF_COR.t3 }];
+  });
+  rows.push({ total:true, cells:['Total', '', '', brl(p.valor), '', brl(real), dif ? { t:difTxt(dif), c:PDF_COR.warn } : '—'] });
+  D.tabela(cols, rows, { tam:8 });
+}
+const pedLinhaInfo = p => [PED_ST[statusPed(p)] || '', p.entregueEm ? 'entrega ' + dataBRfull(p.entregueEm) : '', p.obs ? 'obs.: ' + p.obs : ''].filter(Boolean).join(' · ');
+function pdfUmPedido(p) {
+  const real = valorReal(p), dif = r2((Number(p.valor) || 0) - real);
+  const D = pdfNovo('Pedido · ' + (p.fornecedorNome || ''), 'Pedido de ' + dataBRfull(p.data));
+  D.cards([{ l:'Fornecedor', v:p.fornecedorNome || '—', q:'data ' + dataBRfull(p.data) }, { l:'Situação', v:PED_ST[statusPed(p)] || '—', q:p.entregueEm ? 'entrega ' + dataBRfull(p.entregueEm) : 'sem entrega registrada' },
+    { l:'Total do pedido', v:brl(p.valor), q:nItens((p.itens || []).length) }, { l:'Pelo que chegou', v:brl(real), q:dif ? difTxt(dif) : 'sem diferença', c:dif ? PDF_COR.warn : PDF_COR.tx }]);
+  if (p.obs) D.texto('Observação: ' + p.obs);
+  D.secao('Produtos', (p.itens || []).some(x => !x.recebido) ? 'Produto ainda não conferido conta pelo valor do pedido.' : '');
+  pdfItensPed(D, p);
+  return D;
+}
+const nItens = n => n + (n === 1 ? ' produto' : ' produtos');
+function pdfPedidosForn(D, fid, comCalc, varios) {
+  const R = resumoForn(fid), f = (Store.s.forn.lista || []).find(x => x.id === fid), nome = f ? f.nome : (R.ps[0] && R.ps[0].fornecedorNome) || 'Fornecedor';
+  if (varios) { D.espaco(4); D.secao(nome); }
+  D.cards([{ l:'Total em pedidos', v:brl(R.total), q:nPed(R.ps.length) }, { l:'Pelo que chegou', v:brl(R.real), q:R.dif ? difTxt(R.dif) : 'sem diferença', c:R.dif ? PDF_COR.warn : PDF_COR.tx },
+    comCalc ? { l:'Total pago', v:brl(R.pago), q:nPag(R.pg.length) } : { l:'A entregar', v:String(R.aEnt), q:R.aEnt === 1 ? 'pedido sem entrega completa' : 'pedidos sem entrega completa' },
+    comCalc ? { l:'Saldo a pagar', v:saldoTxtP(R.saldo), q:R.saldo > 0 ? 'falta pagar' : R.saldo < 0 ? 'pago a mais' : 'nada a pagar', c:R.saldo > 0 ? PDF_COR.warn : PDF_COR.ok } : null]);
+  pedCron(R.ps).forEach(p => { D.secao(`Pedido de ${dataBRfull(p.data)}${varios ? '' : ' · ' + nome}`, pedLinhaInfo(p)); pdfItensPed(D, p); });
+  if (!R.ps.length) D.texto('Nenhum pedido com este fornecedor.', { c:PDF_COR.t3 });
+  if (!comCalc) return R;
+  // divergências: só os produtos conferidos com quantidade diferente do pedido
+  const dv = [];
+  pedCron(R.ps).forEach(p => (p.itens || []).forEach(x => { if (!x.recebido) return; const q = Number(x.qtd) || 0, qr = Number(x.qtdRecebida) || 0; if (q === qr) return; const d = r2((Number(x.total) || r2(q * (Number(x.preco) || 0))) - r2(qr * (Number(x.preco) || 0))); dv.push([x.nome || '—', dataBR(p.data), fmtQtd(q), fmtQtd(qr), (qr < q ? '−' : '+') + fmtQtd(r2(Math.abs(q - qr))), { t:difTxt(d), c:PDF_COR.warn, b:true }]); }));
+  D.secao('Divergências entre o pedido e a entrega');
+  if (dv.length) D.tabela([{ t:'Produto' }, { t:'Data do pedido', al:'c' }, { t:'Pedido', al:'r' }, { t:'Chegou', al:'r' }, { t:'Qtd', al:'r' }, { t:'Valor', al:'r' }], dv.concat([{ total:true, cells:['Total', '', '', '', '', R.dif ? { t:difTxt(R.dif), c:PDF_COR.warn } : '—'] }]), { tam:8 });
+  else D.texto('Nenhuma divergência: tudo o que foi conferido chegou como foi pedido.', { c:PDF_COR.t3 });
+  D.secao('Pagamentos');
+  if (R.pg.length) D.tabela([{ t:'Pagamento' }, { t:'Data', al:'c' }, { t:'Forma', al:'c' }, { t:'Valor', al:'r' }], pedCron(R.pg).map(g => [g.descricao && g.descricao !== 'Pagamento de pedidos' ? g.descricao : 'abate do saldo', dataBRfull(g.data), formaNome(g.forma) || '—', brl(g.valor)]).concat([{ total:true, cells:['Total pago', '', '', brl(R.pago)] }]));
+  else D.texto('Nenhum pagamento registrado.', { c:PDF_COR.t3 });
+  D.secao('Cálculo do saldo', 'Produto ainda não conferido conta pelo valor do pedido.');
+  D.tabela([{ t:'Conta' }, { t:'Valor', al:'r' }], [
+    ['Total dos pedidos (como foram pedidos)', brl(R.total)],
+    [R.dif > 0 ? '− Produtos que faltaram na entrega' : R.dif < 0 ? '+ Produtos que vieram a mais' : 'Diferença na entrega', R.dif ? { t:brl(Math.abs(R.dif)), c:PDF_COR.warn } : 'sem diferença'],
+    ['= Total devido pelo que chegou', brl(R.real)],
+    ['− Pagamentos (' + nPag(R.pg.length) + ')', brl(R.pago)],
+    { total:true, cells:[R.saldo < 0 ? '= Crédito com o fornecedor' : '= Saldo a pagar', { t:saldoTxtP(R.saldo), c:R.saldo > 0 ? PDF_COR.warn : PDF_COR.ok }] }]);
+  return R;
+}
+function pdfPedidos(fid, comCalc) {
+  const FL = Store.s.forn.lista || [], f = FL.find(x => x.id === fid);
+  const D = pdfNovo(comCalc ? 'Pedidos, pagamentos e diferenças' : 'Pedidos', (f ? f.nome : 'Todos os fornecedores') + ' · até ' + dataBRfull(hojeStr()));
+  if (fid) { pdfPedidosForn(D, fid, comCalc, false); return D; }
+  const ids = FL.map(x => x.id).filter(id => { const r = resumoForn(id); return r.ps.length || r.pg.length; });
+  if (!ids.length) { D.texto('Nenhum pedido ainda.', { c:PDF_COR.t3 }); return D; }
+  const res = ids.map(id => ({ f:FL.find(x => x.id === id), r:pdfPedidosForn(D, id, comCalc, true) }));
+  D.secao('Resumo geral');
+  const cols = [{ t:'Fornecedor' }, { t:'Pedidos', al:'r' }, { t:'Pelo que chegou', al:'r' }, { t:'Diferença', al:'r' }].concat(comCalc ? [{ t:'Pago', al:'r' }, { t:'Saldo', al:'r' }] : []);
+  const T_ = resumoForn('');
+  D.tabela(cols, res.map(({ f, r }) => [f.nome, brl(r.total), brl(r.real), r.dif ? difTxt(r.dif) : '—'].concat(comCalc ? [brl(r.pago), saldoTxtP(r.saldo)] : []))
+    .concat([{ total:true, cells:['Total', brl(T_.total), brl(T_.real), T_.dif ? difTxt(T_.dif) : '—'].concat(comCalc ? [brl(T_.pago), saldoTxtP(T_.saldo)] : []) }]), { tam:8 });
+  return D;
+}
+function pedPdfHTML() {
+  const S = Store.s.ped, FL = Store.s.forn.lista || [], fid = FL.some(x => x.id === S.forn) ? S.forn : '', f = FL.find(x => x.id === fid);
+  const ps = ordPed((S.pedidos || []).filter(x => !fid || x.fornecedorId === fid));
+  const op = (v, t, d, on) => `<label class="ckl" style="align-items:flex-start;margin-bottom:10px"><input type="radio" name="modo" value="${v}" ${on ? 'checked' : ''}><span><b style="color:var(--t1)">${t}</b><span class="muted" style="display:block;font-size:13px">${d}</span></span></label>`;
+  return `<form data-form="pedPdf" novalidate><div class="alert" role="alert"></div>
+    <p class="muted" style="font-size:13px;margin-bottom:12px">${f ? 'Fornecedor: <b style="color:var(--t1)">' + esc(f.nome) + '</b>' : 'Todos os fornecedores'}. O PDF sai com o logo 356 Gestão.</p>
+    ${op('um', 'Só um pedido', 'Os produtos do pedido, o que chegou e a diferença.', !!ps.length)}
+    <label class="f" style="margin:-2px 0 14px 28px"><span>Pedido</span><select name="pedido">${ps.map(p => `<option value="${esc(p.id)}">${dataBRfull(p.data)} · ${esc(p.fornecedorNome || '')} · ${esc(brl(p.valor))}</option>`).join('') || '<option value="">Nenhum pedido</option>'}</select></label>
+    ${op('todos', 'Todos os pedidos', 'Cada pedido com seus produtos e o que chegou.', !ps.length)}
+    ${op('calc', 'Todos com pagamentos e diferenças', 'Pedidos, divergências na entrega, pagamentos e o cálculo do saldo a pagar.', false)}
+    <div class="acoes"><button class="btn pri full" type="submit">Gerar PDF</button><button type="button" class="btn full" data-act="fecharModal">Cancelar</button></div></form>`;
+}
+function pedPdfGerar(f, d) {
+  const S = Store.s.ped, FL = Store.s.forn.lista || [], fid = FL.some(x => x.id === S.forn) ? S.forn : '', fn = FL.find(x => x.id === fid);
+  const av = f.querySelector('.alert'), erro = m => { av.className = 'alert err on'; av.textContent = m; };
+  if (d.modo === 'um') {
+    const p = (S.pedidos || []).find(x => x.id === d.pedido); if (!p) return erro('Escolha o pedido.');
+    fecharModal(); return gerarPdf(() => pdfUmPedido(p), `Pedido-${p.fornecedorNome || ''}-${p.data}`);
+  }
+  const calc = d.modo === 'calc';
+  fecharModal(); return gerarPdf(() => pdfPedidos(fid, calc), `${calc ? 'Pedidos-e-pagamentos' : 'Pedidos'}-${fn ? fn.nome : 'todos'}-${hojeStr()}`);
+}
+
 const acoes = {
   avisosAtivar() { ativarAvisos(); },
   tema(el) { try { localStorage.setItem('g356-tema', el.dataset.v); } catch (e) {} aplicarTema(); document.querySelectorAll('.tema button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === el.dataset.v))); },
@@ -3928,7 +4285,7 @@ const acoes = {
   pesModo(el) { Store.set({ pes:{ ...Store.s.pes, modo:el.dataset.v } }); },
   relMes(el) { const R = Store.s.rel, novo = mesAdd(R.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ rel:{ ...R, mes:novo, dados:null, erro:null } }); },
   relRecarregar() { Store.set({ rel:{ ...Store.s.rel, dados:null, chave:null, erro:null } }); },
-  relPdf() { document.title = 'Relatorio-356-' + Store.s.rel.esc + '-' + Store.s.rel.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
+  relPdf() { const R = Store.s.rel; pdfDaTela(R.esc === 'geral' ? 'Relatório geral' : 'Relatório · ' + nomeSetor4(R.esc), mesNome(R.mes, true), 'Relatorio-356-' + (R.esc === 'geral' ? 'geral' : nomeSetor4(R.esc)) + '-' + R.mes); },
   pmes(el) { const P = Store.s.pes, novo = mesAdd(P.mes, Number(el.dataset.d)); if (novo > mesAtual()) return; Store.set({ pes:{ ...P, mes:novo, lista:null, chave:null, erro:null } }); },
   pesFiltro(el) { Store.set({ pes:{ ...Store.s.pes, filtro:el.dataset.f } }); },
   pesRecarregar() { Store.set({ pes:{ ...Store.s.pes, cats:null, lista:null, chave:null, erro:null } }); },
@@ -4002,7 +4359,15 @@ const acoes = {
     try { await colPesCat().doc(id).delete(); Store.set({ pes:{ ...P, cats:P.cats.filter(c => c.id !== id) } }); abrirModal('Categorias', catsModalHTML()); }
     catch (e) { Store.set({ pes:{ ...P, erro:'Não foi possível remover. ' + msgErro(e) } }); fecharModal(); }
   },
-  pesPdf() { document.title = 'Pessoal-' + Store.s.pes.mes; window.print(); setTimeout(() => { document.title = 'Gestão 356'; }, 1500); },
+  pesPdf() { const P = Store.s.pes; pdfDaTela('Pessoal · extrato', mesNome(P.mes, true), 'Pessoal-' + P.mes); },
+  contasPdf() {
+    const s = Store.s, aba = s.boletos.aba, tit = { abertos:'não pagos', vencido:'vencidos', avencer:'a vencer', pago:'pagos (últimos 3 meses)', todos:'todos' };
+    const sub = aba === 'contas' ? 'Contas agendadas · ' + mesNome(s.contas.mes, true) : (aba === 'boletos' ? 'Boletos · ' : 'Boletos e contas · ') + (tit[s.boletos.filtro] || '') + ' · ' + dataBRfull(hojeStr());
+    pdfDaTela('Contas a pagar', sub, 'Contas-a-pagar-' + (aba === 'contas' ? s.contas.mes : aba + '-' + hojeStr()));
+  },
+  lancPdf() { const L = Store.s.lanc, set = (Store.s.emp && Store.s.emp.sub && Store.s.emp.sub !== 'todos') ? nomeSetor(Store.s.emp.sub) : ''; pdfDaTela(set ? 'Empresa · ' + set : 'Empresa · todos os subsetores', 'Lançamentos de ' + mesNome(L.mes, true), 'Lancamentos-' + (set || 'empresa') + '-' + L.mes); },
+  pedPdf() { prepLogoPdf(); if (!(Store.s.ped.pedidos || []).length) { aviso('Nenhum pedido para exportar ainda.'); return; } abrirModal('Baixar PDF dos pedidos', pedPdfHTML()); },
+  pdfCompartilhar() { const f = pdfPendente; if (!f) return fecharModal(); fecharModal(); if (navigator.share) navigator.share({ files:[f], title:f.name }).catch(e => { if (!e || e.name !== 'AbortError') pdfBaixar(f); }); else pdfBaixar(f); },
   energiaRecarregar() { const E = Store.s.energia; Store.set({ energia:{ lista:null, mes:E.mes, loja:E.loja, erro:null } }); },
   energiaApagar(el) {
     const x = (Store.s.energia.lista || []).find(e => e.id === el.dataset.id); if (!x) return;
@@ -4067,6 +4432,7 @@ document.addEventListener('submit', async e => {
   const f = e.target.closest('form[data-form]'); if (!f) return;
   e.preventDefault();
   const d = Object.fromEntries(new FormData(f).entries());
+  if (f.dataset.form === 'pedPdf') { pedPdfGerar(f, d); return; }
   if (f.dataset.form === 'boleto') { await salvarBoleto(f, d); return; }
   if (f.dataset.form === 'conta') { await salvarConta(f, d); return; }
   if (f.dataset.form === 'contaPag') { await salvarContaPag(f, d); return; }
@@ -4153,6 +4519,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
   }).catch(() => {}));
 }
+window.addEventListener('load', () => setTimeout(() => { try { prepLogoPdf(); } catch (e) {} }, 2500)); // logo do PDF pronto antes do primeiro toque
 </script>
 </body>
 </html>
